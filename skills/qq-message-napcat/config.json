@@ -1,0 +1,5 @@
+{
+  "server": "ws://localhost:3002",
+  "token": "",
+  "timeout": 30
+}
