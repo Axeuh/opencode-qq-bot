@@ -27,24 +27,36 @@
 ```
 mybot/
 ├── src/                    # Python 源代码
-│   ├── core/              # 核心功能
-│   │   └── onebot_client.py     # 主机器人客户端
 │   ├── opencode/          # OpenCode 集成
+│   │   ├── __init__.py
 │   │   └── opencode_client.py   # OpenCode HTTP 客户端
 │   ├── session/           # 会话管理
+│   │   ├── __init__.py
 │   │   └── session_manager.py   # 会话持久化管理
 │   └── utils/             # 工具和配置
-│       └── config.py
+│       ├── __init__.py
+│       ├── config.py      # 配置常量
+│       └── config_loader.py     # YAML 配置加载器
 ├── scripts/               # 脚本工具
-│   └── run_bot.py        # 启动脚本（推荐）
-├── data/                  # 数据存储
-│   └── sessions.json     # 会话数据文件
-├── logs/                  # 日志目录
-├── downloads/             # 文件下载目录
-├── docs/                  # 文档
+│   └── run_bot.py        # 启动脚本
 ├── tests/                 # 测试文件
+│   ├── test_connection.py       # 连接测试
+│   ├── test_commands.py         # 命令测试
+│   ├── debug_interface.py       # 调试接口
+│   └── ...                      # 其他测试文件
+├── data/                  # 数据存储
+│   ├── sessions.json     # 会话数据文件
+│   └── tasks.json        # 定时任务数据
+├── logs/                  # 日志目录
+├── docs/                  # 文档和测试数据
+├── config.yaml            # 主配置文件（YAML格式）
 ├── requirements.txt       # Python 依赖
-└── README.md             # 本文件
+├── start_en.bat           # Windows 启动脚本
+├── restart_bot.bat        # Windows 重启脚本
+├── pyrightconfig.json     # Pyright 类型检查配置
+├── AGENTS.md              # AI Agent 指令文件
+├── .gitignore             # Git 忽略规则
+└── README.md              # 本文件
 ```
 
 ## 快速启动
