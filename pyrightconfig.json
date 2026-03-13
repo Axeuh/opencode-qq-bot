@@ -1,0 +1,35 @@
+{
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "src"
+      ]
+    }
+  ],
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "information",
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.8",
+  "pythonPlatform": "Windows",
+  "exclude": [
+    "**/__pycache__/**",
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/venv/**",
+    "**/.venv/**",
+    "**/env/**"
+  ],
+  "ignore": [
+    "src/utils/config.py",
+    "src/session/session_manager.py"
+  ],
+  "defineConstant": {
+    "DEBUG": false
+  },
+  "analysis": {
+    "diagnosticMode": "workspace",
+    "typeEvaluationTimeout": 10,
+    "logLevel": "Warning"
+  }
+}
