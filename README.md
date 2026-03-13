@@ -34,7 +34,7 @@ mybot/
 │   ├── session/           # 会话管理
 │   │   └── session_manager.py   # 会话持久化管理
 │   └── utils/             # 工具和配置
-│       └── config.py      # 配置文件
+│       └── config.py
 ├── scripts/               # 脚本工具
 │   └── run_bot.py        # 启动脚本（推荐）
 ├── data/                  # 数据存储
