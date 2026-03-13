@@ -44,7 +44,6 @@ mybot/
 ├── docs/                  # 文档
 ├── tests/                 # 测试文件
 ├── requirements.txt       # Python 依赖
-├── PROJECT_STRUCTURE.md   # 详细项目结构文档
 └── README.md             # 本文件
 ```
 
