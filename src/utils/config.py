@@ -1,0 +1,160 @@
+"""
+OneBot 客户端配置
+从 YAML 配置文件加载，保持向后兼容
+
+所有配置现在在 config.yaml 中管理
+"""
+
+# 从配置加载器导入所有配置（向后兼容）
+from .config_loader import (
+    # 配置加载器
+    ConfigLoader,
+    get_config_loader,
+    reload_config,
+    
+    # WebSocket 配置
+    WS_URL,
+    ACCESS_TOKEN,
+    HEARTBEAT_INTERVAL,
+    RECONNECT_INTERVAL,
+    WS_EXTRA_HEADERS,
+    
+    # HTTP API 配置
+    HTTP_API_BASE_URL,
+    HTTP_API_ACCESS_TOKEN,
+    HTTP_API_TIMEOUT,
+    HTTP_API_ENABLED,
+    HTTP_API_RETRY_COUNT,
+    HTTP_API_RETRY_DELAY,
+    
+    # 基础配置
+    DEBUG,
+    BOT_NAME,
+    BOT_QQ_ID,
+    ADMIN_QQ,
+    
+    # 功能开关
+    ENABLED_FEATURES,
+    
+    # 白名单配置
+    QQ_USER_WHITELIST,
+    GROUP_WHITELIST,
+    
+    # OpenCode 配置
+    OPENCODE_HOST,
+    OPENCODE_PORT,
+    OPENCODE_BASE_URL,
+    OPENCODE_DIRECTORY,
+    OPENCODE_TIMEOUT,
+    OPENCODE_DEFAULT_AGENT,
+    OPENCODE_DEFAULT_MODEL,
+    OPENCODE_DEFAULT_PROVIDER,
+    OPENCODE_AUTH,
+    OPENCODE_COOKIES,
+    OPENCODE_SUPPORTED_AGENTS,
+    OPENCODE_SUPPORTED_MODELS,
+    OPENCODE_COMMAND_PREFIX,
+    
+    # 会话配置
+    OPENCODE_SESSION_CONFIG,
+    
+    # 日志配置
+    LOGGING_CONFIG,
+    
+    # 文件处理配置
+    FILE_HANDLING_CONFIG,
+    DOWNLOAD_DIR,
+    TEMP_DIR,
+    MAX_FILE_SIZE,
+    ALLOWED_EXTENSIONS,
+    ENABLE_AUTO_DOWNLOAD,
+    
+    # 特殊回复配置
+    SPECIAL_REPLIES,
+    ENABLE_AT_MENTION,
+    
+    # OpenCode 额外配置
+    OPENCODE_ENABLED_FEATURES,
+    OPENCODE_MESSAGE_CONFIG,
+    OPENCODE_SYSTEM_PROMPT,
+    
+    # 自动回复配置
+    AUTO_REPLY_KEYWORDS,
+    
+    # 消息处理配置
+    MESSAGE_CONFIG,
+    
+    # 任务进度配置
+    TARGET_GROUP_ID,
+    
+    # 定时任务调度器配置
+    TASK_SCHEDULER_CHECK_INTERVAL,
+    
+    # HTTP 服务器配置
+    HTTP_SERVER_ENABLED,
+    HTTP_SERVER_HOST,
+    HTTP_SERVER_PORT,
+    HTTP_SERVER_ACCESS_TOKEN,
+    
+    # 热重载函数
+    update_config_from_reload,
+)
+
+# 导出配置加载器，供需要动态加载的模块使用
+__all__ = [
+    'ConfigLoader',
+    'get_config_loader',
+    'reload_config',
+    'WS_URL',
+    'ACCESS_TOKEN',
+    'HEARTBEAT_INTERVAL',
+    'RECONNECT_INTERVAL',
+    'WS_EXTRA_HEADERS',
+    'HTTP_API_BASE_URL',
+    'HTTP_API_ACCESS_TOKEN',
+    'HTTP_API_TIMEOUT',
+    'HTTP_API_ENABLED',
+    'HTTP_API_RETRY_COUNT',
+    'HTTP_API_RETRY_DELAY',
+    'DEBUG',
+    'BOT_NAME',
+    'BOT_QQ_ID',
+    'ADMIN_QQ',
+'ENABLED_FEATURES',
+    'QQ_USER_WHITELIST',
+    'GROUP_WHITELIST',
+    'OPENCODE_HOST',
+    'OPENCODE_PORT',
+    'OPENCODE_BASE_URL',
+    'OPENCODE_DIRECTORY',
+    'OPENCODE_TIMEOUT',
+    'OPENCODE_DEFAULT_AGENT',
+    'OPENCODE_DEFAULT_MODEL',
+    'OPENCODE_DEFAULT_PROVIDER',
+    'OPENCODE_AUTH',
+    'OPENCODE_COOKIES',
+    'OPENCODE_SUPPORTED_AGENTS',
+    'OPENCODE_SUPPORTED_MODELS',
+    'OPENCODE_COMMAND_PREFIX',
+    'OPENCODE_SESSION_CONFIG',
+    'LOGGING_CONFIG',
+    'FILE_HANDLING_CONFIG',
+    'DOWNLOAD_DIR',
+    'TEMP_DIR',
+    'MAX_FILE_SIZE',
+    'ALLOWED_EXTENSIONS',
+    'ENABLE_AUTO_DOWNLOAD',
+    'SPECIAL_REPLIES',
+    'ENABLE_AT_MENTION',
+    'OPENCODE_ENABLED_FEATURES',
+    'OPENCODE_MESSAGE_CONFIG',
+    'OPENCODE_SYSTEM_PROMPT',
+    'AUTO_REPLY_KEYWORDS',
+    'MESSAGE_CONFIG',
+    'TARGET_GROUP_ID',
+    'TASK_SCHEDULER_CHECK_INTERVAL',
+    'HTTP_SERVER_ENABLED',
+    'HTTP_SERVER_HOST',
+    'HTTP_SERVER_PORT',
+    'HTTP_SERVER_ACCESS_TOKEN',
+]

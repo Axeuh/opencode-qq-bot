@@ -1,0 +1,239 @@
+# 获取消息
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.1
+info:
+  title: ''
+  description: ''
+  version: 1.0.0
+paths:
+  /get_msg:
+    post:
+      summary: 获取消息
+      deprecated: false
+      description: 根据消息 ID 获取消息详细信息
+      tags:
+        - OpenAPI/消息接口
+        - 消息接口
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message_id:
+                  description: 消息ID
+                  anyOf:
+                    - type: number
+                    - type: string
+              required:
+                - message_id
+              x-apifox-orders:
+                - message_id
+              x-apifox-ignore-properties: []
+            examples:
+              Default:
+                value:
+                  message_id: 123456
+                summary: 默认请求示例
+      responses:
+        '200':
+          description: 业务响应
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        description: 业务数据
+                        type: object
+                        properties:
+                          time:
+                            description: 发送时间
+                            type: number
+                          message_type:
+                            description: 消息类型
+                            type: string
+                          message_id:
+                            description: 消息ID
+                            type: number
+                          real_id:
+                            description: 真实ID
+                            type: number
+                          message_seq:
+                            description: 消息序号
+                            type: number
+                          sender:
+                            description: 发送者
+                            type: object
+                            x-apifox-orders: []
+                            properties: {}
+                            x-apifox-ignore-properties: []
+                          message:
+                            description: 消息内容
+                            type: object
+                            x-apifox-orders: []
+                            properties: {}
+                            x-apifox-ignore-properties: []
+                          raw_message:
+                            description: 原始消息内容
+                            type: string
+                          font:
+                            description: 字体
+                            type: number
+                          group_id:
+                            description: 群号
+                            anyOf:
+                              - type: number
+                              - type: string
+                          user_id:
+                            description: 发送者QQ号
+                            anyOf:
+                              - type: number
+                              - type: string
+                          emoji_likes_list:
+                            description: 表情回应列表
+                            type: array
+                            items:
+                              type: string
+                        required:
+                          - time
+                          - message_type
+                          - message_id
+                          - real_id
+                          - message_seq
+                          - sender
+                          - message
+                          - raw_message
+                          - font
+                          - user_id
+                        x-apifox-orders:
+                          - time
+                          - message_type
+                          - message_id
+                          - real_id
+                          - message_seq
+                          - sender
+                          - message
+                          - raw_message
+                          - font
+                          - group_id
+                          - user_id
+                          - emoji_likes_list
+                        x-apifox-ignore-properties: []
+                    x-apifox-orders:
+                      - data
+                    x-apifox-ignore-properties: []
+              examples:
+                Success:
+                  summary: 成功响应
+                  value:
+                    status: ok
+                    retcode: 0
+                    data:
+                      time: 1710000000
+                      message_type: group
+                      message_id: 123456
+                      real_id: 123456
+                      sender:
+                        user_id: 123456789
+                        nickname: 昵称
+                      message: hello
+                    message: ''
+                    wording: ''
+                    stream: normal-action
+                Error_1400:
+                  summary: 请求参数错误或业务逻辑执行失败
+                  value:
+                    status: failed
+                    retcode: 1400
+                    data: null
+                    message: 请求参数错误或业务逻辑执行失败
+                    wording: 请求参数错误或业务逻辑执行失败
+                    stream: normal-action
+                Error_1401:
+                  summary: 权限不足
+                  value:
+                    status: failed
+                    retcode: 1401
+                    data: null
+                    message: 权限不足
+                    wording: 权限不足
+                    stream: normal-action
+                Error_1404:
+                  summary: 资源不存在
+                  value:
+                    status: failed
+                    retcode: 1404
+                    data: null
+                    message: 资源不存在
+                    wording: 资源不存在
+                    stream: normal-action
+          headers: {}
+          x-apifox-name: 成功
+      security: []
+      x-apifox-folder: OpenAPI/消息接口
+      x-apifox-status: released
+      x-run-in-apifox: https://app.apifox.com/web/project/5348325/apis/api-226656707-run
+components:
+  schemas:
+    BaseResponse:
+      type: object
+      x-schema-id: BaseResponse
+      properties:
+        status:
+          type: string
+          description: 状态 (ok/failed)
+        retcode:
+          type: number
+          description: 返回码
+        data:
+          type: string
+        message:
+          type: string
+          description: 消息
+        wording:
+          type: string
+          description: 提示
+        stream:
+          type: string
+          description: 流式响应
+          enum:
+            - stream-action
+            - normal-action
+      required:
+        - status
+        - retcode
+      x-apifox-orders:
+        - status
+        - retcode
+        - data
+        - message
+        - wording
+        - stream
+      x-apifox-ignore-properties: []
+      x-apifox-folder: ''
+  securitySchemes:
+    api_key:
+      type: apikey
+      name: api_key
+      in: header
+    petstore_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://petstore.swagger.io/oauth/authorize
+          scopes:
+            read:pets: read your pets
+            write:pets: modify pets in your account
+servers: []
+security: []
+
+```

@@ -1,0 +1,29 @@
+{
+  "self_id": 3938121220,
+  "user_id": 2176284372,
+  "time": 1773366669,
+  "message_id": 1811263074,
+  "message_seq": 1811263074,
+  "real_id": 1811263074,
+  "real_seq": "1810",
+  "message_type": "private",
+  "sender": {
+    "user_id": 2176284372,
+    "nickname": "Axeuh_nya (不摆了)",
+    "card": ""
+  },
+  "raw_message": "[CQ:forward,id=7616551853240692314]",
+  "font": 14,
+  "sub_type": "friend",
+  "message": [
+    {
+      "type": "forward",
+      "data": {
+        "id": "7616551853240692314"
+      }
+    }
+  ],
+  "message_format": "array",
+  "post_type": "message",
+  "target_id": 2176284372
+}

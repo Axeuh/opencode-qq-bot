@@ -1,0 +1,150 @@
+{
+  "messages": [
+    {
+      "self_id": 3938121220,
+      "user_id": 2176284372,
+      "time": 1773363130,
+      "message_id": 340738520,
+      "message_seq": 340738520,
+      "real_id": 340738520,
+      "real_seq": "0",
+      "message_type": "private",
+      "sender": {
+        "user_id": 2176284372,
+        "nickname": "Axeuh_nya (不摆了)",
+        "card": ""
+      },
+      "raw_message": "第一条消息",
+      "font": 14,
+      "sub_type": "friend",
+      "message": [
+        {
+          "type": "text",
+          "data": {
+            "text": "第一条消息"
+          }
+        }
+      ],
+      "message_format": "array",
+      "post_type": "message"
+    },
+    {
+      "self_id": 3938121220,
+      "user_id": 2176284372,
+      "time": 1773363134,
+      "message_id": 1381389210,
+      "message_seq": 1381389210,
+      "real_id": 1381389210,
+      "real_seq": "0",
+      "message_type": "private",
+      "sender": {
+        "user_id": 2176284372,
+        "nickname": "Axeuh_nya (不摆了)",
+        "card": ""
+      },
+      "raw_message": "第二条消息",
+      "font": 14,
+      "sub_type": "friend",
+      "message": [
+        {
+          "type": "text",
+          "data": {
+            "text": "第二条消息"
+          }
+        }
+      ],
+      "message_format": "array",
+      "post_type": "message"
+    },
+    {
+      "self_id": 3938121220,
+      "user_id": 2176284372,
+      "time": 1773363140,
+      "message_id": 1527587159,
+      "message_seq": 1527587159,
+      "real_id": 1527587159,
+      "real_seq": "0",
+      "message_type": "private",
+      "sender": {
+        "user_id": 2176284372,
+        "nickname": "Axeuh_nya (不摆了)",
+        "card": ""
+      },
+      "raw_message": "第三条消息",
+      "font": 14,
+      "sub_type": "friend",
+      "message": [
+        {
+          "type": "text",
+          "data": {
+            "text": "第三条消息"
+          }
+        }
+      ],
+      "message_format": "array",
+      "post_type": "message"
+    },
+    {
+      "self_id": 3938121220,
+      "user_id": 2176284372,
+      "time": 1773363154,
+      "message_id": 1741524314,
+      "message_seq": 1741524314,
+      "real_id": 1741524314,
+      "real_seq": "0",
+      "message_type": "private",
+      "sender": {
+        "user_id": 2176284372,
+        "nickname": "Axeuh_nya (不摆了)",
+        "card": ""
+      },
+      "raw_message": "[CQ:file,file=Echoes_of_the_Vast.mp3,file_id=d476b781f95b09df4de35ea1c783c368_0f95bb1a-1e79-11f1-a8d0-a3471df11838,file_size=663300]",
+      "font": 14,
+      "sub_type": "friend",
+      "message": [
+        {
+          "type": "file",
+          "data": {
+            "file": "Echoes_of_the_Vast.mp3",
+            "file_id": "d476b781f95b09df4de35ea1c783c368_0f95bb1a-1e79-11f1-a8d0-a3471df11838",
+            "file_size": "663300"
+          }
+        }
+      ],
+      "message_format": "array",
+      "post_type": "message"
+    },
+    {
+      "self_id": 3938121220,
+      "user_id": 2176284372,
+      "time": 1773363164,
+      "message_id": 432629803,
+      "message_seq": 432629803,
+      "real_id": 432629803,
+      "real_seq": "0",
+      "message_type": "private",
+      "sender": {
+        "user_id": 2176284372,
+        "nickname": "Axeuh_nya (不摆了)",
+        "card": ""
+      },
+      "raw_message": "[CQ:image,file=4F2A3CC5B43507B4996D180189698083.png,sub_type=0,url=https://multimedia.nt.qq.com.cn/download?appid=1406&amp;fileid=EhQlW2A0L4p58aOnlNwalM-UGgsFVBi_60wg_gootuTh_NebkwMyBHByb2RQgLsvWhBSkCGZmKzg_Hf7h5LPr6jMegKK4oIBAm5q&amp;rkey=CAESMJQWWhUCLNPXoonHvM10s7EgNNAiQRvQIYoq8bAWNbdu6C4XJd85fmH9FMvSsKCrpQ,file_size=1258943]",
+      "font": 14,
+      "sub_type": "friend",
+      "message": [
+        {
+          "type": "image",
+          "data": {
+            "summary": "",
+            "file": "4F2A3CC5B43507B4996D180189698083.png",
+            "sub_type": 0,
+            "url": "https://multimedia.nt.qq.com.cn/download?appid=1406&fileid=EhQlW2A0L4p58aOnlNwalM-UGgsFVBi_60wg_gootuTh_NebkwMyBHByb2RQgLsvWhBSkCGZmKzg_Hf7h5LPr6jMegKK4oIBAm5q&rkey=CAESMJQWWhUCLNPXoonHvM10s7EgNNAiQRvQIYoq8bAWNbdu6C4XJd85fmH9FMvSsKCrpQ",
+            "file_size": "1258943"
+          }
+        }
+      ],
+      "message_format": "array",
+      "post_type": "message"
+    }
+  ]
+}

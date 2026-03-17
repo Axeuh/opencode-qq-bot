@@ -1,0 +1,31 @@
+{
+  "self_id": 3938121220,
+  "user_id": 2176284372,
+  "time": 1773357897,
+  "message_id": 79649814,
+  "message_seq": 79649814,
+  "real_id": 79649814,
+  "real_seq": "1758",
+  "message_type": "private",
+  "sender": {
+    "user_id": 2176284372,
+    "nickname": "Axeuh_nya (不摆了)",
+    "card": ""
+  },
+  "raw_message": "[CQ:file,file=Gemini_Generated_Image_n27uk2n27uk2n27u.png,file_id=d476b781f95b09df4de35ea1c783c368_adb745ca-1e6a-11f1-a8d0-a3471df11838,file_size=6820021]",
+  "font": 14,
+  "sub_type": "friend",
+  "message": [
+    {
+      "type": "file",
+      "data": {
+        "file": "Gemini_Generated_Image_n27uk2n27uk2n27u.png",
+        "file_id": "d476b781f95b09df4de35ea1c783c368_adb745ca-1e6a-11f1-a8d0-a3471df11838",
+        "file_size": "6820021"
+      }
+    }
+  ],
+  "message_format": "array",
+  "post_type": "message",
+  "target_id": 2176284372
+}

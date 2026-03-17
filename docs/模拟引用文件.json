@@ -1,0 +1,43 @@
+{
+  "self_id": 3938121220,
+  "user_id": 2176284372,
+  "time": 1773361297,
+  "message_id": 1582933052,
+  "message_seq": 1582933052,
+  "real_id": 1582933052,
+  "real_seq": "31414",
+  "message_type": "group",
+  "sender": {
+    "user_id": 2176284372,
+    "nickname": "Axeuh_nya (不摆了)",
+    "card": "",
+    "role": "owner"
+  },
+  "raw_message": "[CQ:reply,id=105491474][CQ:at,qq=3938121220]测试",
+  "font": 14,
+  "sub_type": "normal",
+  "message": [
+    {
+      "type": "reply",
+      "data": {
+        "id": "105491474"
+      }
+    },
+    {
+      "type": "at",
+      "data": {
+        "qq": "3938121220"
+      }
+    },
+    {
+      "type": "text",
+      "data": {
+        "text": "测试 "
+      }
+    }
+  ],
+  "message_format": "array",
+  "post_type": "message",
+  "group_id": 957134103,
+  "group_name": "Axeuh家族"
+}

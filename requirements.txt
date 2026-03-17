@@ -1,0 +1,4 @@
+# Python 依赖
+aiohttp>=3.9.0
+PyYAML>=6.0
+requests>=2.31.0

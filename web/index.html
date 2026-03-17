@@ -1,0 +1,2562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Web Console</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* === 变量与全局设置 === */
+        :root {
+            --primary-blue: #89CFF0; /* 柔和可爱蓝 */
+            --primary-blue-hover: #75bce0;
+            --primary-pink: #F8BBD0; /* 柔和可爱粉 */
+            --bg-light: #f5f7fa;
+            --sidebar-bg: #ffffff;
+            --text-main: #4a4a4a;
+            --text-sub: #888888;
+            --border-radius: 14px;
+            --shadow-sm: 0 4px 12px rgba(137, 207, 240, 0.1);
+            --shadow-md: 0 8px 24px rgba(137, 207, 240, 0.15);
+            --diff-add: #e6ffed;
+            --diff-add-text: #22863a;
+            --diff-del: #ffeef0;
+            --diff-del-text: #b31d28;
+            --card-border: #eef2f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Nunito', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            background-color: var(--bg-light);
+            display: flex;
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d0e5f2; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary-blue); }
+
+        /* === 左侧边栏 (280px) === */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid #e1e8f0;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+            z-index: 10;
+            transition: width 0.3s ease, margin-left 0.3s ease;
+        }
+        .sidebar.collapsed {
+            width: 0;
+            flex-basis: 0;
+            flex-shrink: 1;
+            margin-left: 0;
+            border-right: none;
+            overflow: hidden;
+        }
+        .sidebar.collapsed .user-header,
+        .sidebar.collapsed .session-list,
+        .sidebar.collapsed .sidebar-footer {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 顶部用户信息栏 */
+        .user-header {
+            height: 70px;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #f0f4f8;
+        }
+        .user-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 2px solid var(--primary-pink);
+            object-fit: cover;
+        }
+        .user-name {
+            flex: 1;
+            margin-left: 12px;
+            font-weight: bold;
+            font-size: 15px;
+            color: var(--text-main);
+        }
+        .settings-btn {
+            background: #f5f8fb;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            color: var(--primary-blue);
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .settings-btn:hover { background: var(--primary-blue); color: white; transform: rotate(45deg); }
+
+        /* 会话列表 */
+        .session-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .session-item {
+            padding: 12px 14px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: 0.2s;
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            flex-direction: column;
+            border: 1px solid transparent;
+        }
+        .session-item:hover { background: #f8fbff; border-color: #e6f0f9; }
+        .session-item.active { background: #eff7fc; border-color: var(--primary-blue); }
+        
+        .session-header { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .session-title { font-size: 14px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+        .session-time { font-size: 11px; color: #a0aab5; }
+        .session-preview { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        
+        .session-delete {
+            position: absolute; right: 10px; bottom: 10px; background: none; border: none; 
+            color: #ff9999; cursor: pointer; opacity: 0; transition: 0.2s; font-size: 14px;
+        }
+        .session-item:hover .session-delete { opacity: 1; }
+        .session-delete:hover { color: #ff4d4d; transform: scale(1.1); }
+
+        /* 底部新建按钮 */
+        .sidebar-footer { padding: 16px; border-top: 1px solid #f0f4f8; }
+        .btn-new {
+            width: 100%; padding: 12px; border-radius: var(--border-radius); border: none;
+            background: linear-gradient(135deg, var(--primary-blue), #6db5f2); color: white;
+            font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s;
+            box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-new:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+        /* === 右侧主区域 === */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="1.5" fill="%23e8eef5"/></svg>');
+        }
+
+        /* 消息流区域 */
+        .message-flow {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            scroll-behavior: smooth;
+        }
+        /* 消息流标题栏 */
+        .message-header {
+            padding: 16px 80px 12px;
+            border-bottom: 1px solid #eef2f6;
+            background: #fff;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .message-header-left {
+            overflow: visible;
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .sidebar-toggle {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f5f8fb;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-blue);
+            flex-shrink: 0;
+            transition: 0.2s;
+            margin-left: -24px;
+        }
+        .sidebar-toggle:hover {
+            background: var(--primary-blue);
+            color: white;
+        }
+        .message-header-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .message-header-sub {
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+        .message-header-menu {
+            position: relative;
+            margin-left: 16px;
+            flex-shrink: 0;
+        }
+        .menu-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-sub);
+            transition: 0.2s;
+        }
+        .menu-btn:hover {
+            background: #f0f4f8;
+            color: var(--text-main);
+        }
+        .menu-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #e1e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            min-width: 180px;
+            display: none;
+            z-index: 100;
+        }
+        .menu-dropdown.show {
+            display: block;
+        }
+        .menu-item {
+            padding: 10px 16px;
+            font-size: 13px;
+            color: var(--text-main);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: 0.2s;
+        }
+        .menu-item:hover {
+            background: #f5f7fa;
+        }
+        .menu-item:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+        .menu-item:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+        /* 消息流内容区 */
+        .message-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 80px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* -- 用户消息 -- */
+        .msg-user-wrap { align-self: flex-end; max-width: 75%; display: flex; flex-direction: column; align-items: flex-end; }
+        .msg-user-bubble {
+            background: var(--primary-blue); color: white; padding: 12px 18px;
+            border-radius: 16px 16px 4px 16px; font-size: 14px; line-height: 1.6;
+            box-shadow: 0 4px 10px rgba(137, 207, 240, 0.3); word-break: break-all;
+        }
+        .msg-user-info { font-size: 11px; color: #9aa5b1; margin-top: 6px; }
+
+        /* -- AI回复区域 -- */
+        .msg-ai-wrap {
+            align-self: flex-start;
+            width: 100%; /* 占满可用空间(已扣除80px边距) */
+            display: flex; align-items: flex-start; gap: 16px;
+        }
+        .ai-avatar {
+            width: 36px; height: 36px; border-radius: 50%; border: 2px solid white;
+            box-shadow: var(--shadow-sm); flex-shrink: 0; background: #fff;
+        }
+        .ai-content { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        
+        /* 思考区块: 无外框,无标题,纯文本+左侧边线 */
+        .thought-block {
+            border-left: 3px solid var(--primary-pink);
+            padding-left: 12px;
+            margin: 4px 0;
+            font-size: 13px;
+            color: #7a8694;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
+        /* AI纯文本内容 - 带有气泡背景框 */
+        .ai-text { 
+            font-size: 14px; 
+            line-height: 1.6; 
+            color: var(--text-main); 
+            background: #ffffff; 
+            padding: 16px 20px;
+            border-radius: 4px 16px 16px 16px; 
+            box-shadow: var(--shadow-sm); 
+            border: 1px solid rgba(137, 207, 240, 0.2); 
+            margin-top: 4px;
+            min-width: 0;
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .ai-text p { margin-bottom: 8px; }
+        .ai-text p:last-child { margin-bottom: 0; } 
+        .ai-text code { background: #f0f4f8; padding: 2px 6px; border-radius: 4px; color: #d63384; font-family: monospace;}
+        
+        /* AI加载指示器 */
+        .ai-loading {
+            display: flex; gap: 4px; padding: 8px 0; align-items: center;
+        }
+        .ai-loading .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #a8d8ff;
+            animation: dot-bounce 1.4s infinite ease-in-out both;
+        }
+        .ai-loading .dot:nth-child(1) { animation-delay: -0.32s; }
+        .ai-loading .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes dot-bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+/* AI思考中提示 */
+        .ai-thinking {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 16px; background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+            border-radius: 12px; color: #4a90d9; font-size: 14px;
+        }
+        .ai-thinking .thinking-dots {
+            display: flex; gap: 4px;
+        }
+        .ai-thinking .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #4a90d9;
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+        .ai-thinking .dot:nth-child(1) { animation-delay: 0s; }
+        .ai-thinking .dot:nth-child(2) { animation-delay: 0.2s; }
+        .ai-thinking .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        .ai-thinking .thinking-text {
+            font-weight: 500;
+        }
+        .ai-thinking .thinking-icon {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .ai-thinking .thinking-text {
+            font-weight: 500;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* -- 工具卡片通用样式 -- */
+        .tool-card {
+            border: 1px solid var(--card-border); border-radius: 12px; background: #fff;
+            overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.02); margin-top: 6px;
+            max-width: 100%; min-width: 0;
+        }
+        .tool-header {
+            padding: 10px 14px; background: #fafbfc; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; font-size: 13px; font-weight: bold; color: var(--text-main);
+            user-select: none; min-width: 0;
+        }
+        .tool-header > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tool-header:hover { background: #f5f7fa; }
+        .tool-icon { margin-right: 8px; color: var(--primary-blue); width: 16px; text-align: center; flex-shrink: 0; }
+        .tool-toggle-icon { transition: transform 0.3s; color: #b0bac5; flex-shrink: 0; }
+        .tool-body { padding: 14px; border-top: 1px solid var(--card-border); display: none; background: #fff; overflow-x: auto; }
+        .tool-card.expanded .tool-body { display: block; }
+        .tool-card.expanded .tool-toggle-icon { transform: rotate(180deg); }
+
+        /* Diff 特殊样式 */
+        .diff-container { font-family: monospace; font-size: 12px; line-height: 1.5; background: #fafbfc; border-radius: 6px; border: 1px solid #eaeef2; overflow-x: auto; max-width: 100%; }
+        .diff-line { display: flex; min-width: 0; }
+        .diff-line:hover { background: #f0f4f8; }
+        .diff-num { width: 35px; text-align: right; padding-right: 8px; color: #b0bac5; user-select: none; border-right: 1px solid #eaeef2; background: #f8fafc; flex-shrink: 0; }
+        .diff-code { padding-left: 12px; white-space: pre-wrap; word-break: break-all; flex: 1; min-width: 0; }
+        .diff-add { background: var(--diff-add); }
+        .diff-add .diff-code { color: var(--diff-add-text); }
+        .diff-del { background: var(--diff-del); }
+        .diff-del .diff-code { color: var(--diff-del-text); }
+
+        /* QQ 特殊卡片 */
+        .qq-card { border-color: #cce5ff; }
+        .qq-card .tool-header { background: #e8f4ff; color: #0056b3; }
+        .qq-icon { color: #12b7f5; }
+
+        /* Bash 等宽样式 (改为浅色柔和风格) */
+        .bash-cmd { 
+            background: #f8fafc; 
+            color: #475569; 
+            border: 1px solid #e2e8f0; 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; 
+            font-size: 12px; 
+            white-space: pre-wrap; 
+            word-break: break-word;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            line-height: 1.5;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        .bash-status { margin-top: 8px; font-size: 12px; color: #28a745; font-weight: bold;}
+
+        /* === 消息输入区域 === */
+        .input-area {
+            background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
+            border-top: 1px solid #e1e8f0; padding: 16px 80px; /* 左右80px边距 */
+            display: flex; flex-direction: column; gap: 12px; z-index: 10;
+        }
+
+        /* 顶部栏：路径 + 配置栏 */
+        .input-top-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px;}
+        
+        .work-path-box {
+            display: flex; align-items: center; flex: 1; background: #fff;
+            border: 1px solid #e1e8f0; border-radius: 8px; padding: 0 12px; height: 34px;
+        }
+        .work-path-box i { color: #f6c23e; margin-right: 8px; }
+        .work-path-input { border: none; outline: none; flex: 1; font-size: 13px; color: #666; background: transparent;}
+
+        .config-bar { display: flex; gap: 10px; }
+        
+        /* 自定义下拉框样式 */
+        .custom-select { position: relative; }
+        #modelSelect { min-width: 100px; max-width: 180px; }
+        #agentSelect { width: 160px; }
+        .select-selected {
+            background: #fff; border: 1px solid #e1e8f0; border-radius: 8px; height: 34px;
+            padding: 0 12px; display: flex; align-items: center; justify-content: space-between;
+            font-size: 12px; cursor: pointer; color: var(--text-main); user-select: none;
+        }
+        .select-selected-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+        .select-selected:after { content: '\f0d8'; font-family: 'Font Awesome 6 Free'; font-weight: 900; color: #b0bac5; flex-shrink: 0; margin-left: 8px; }
+        .select-items {
+            position: absolute; background-color: #fff; bottom: 100%; left: 0; right: 0; z-index: 99;
+            border: 1px solid #e1e8f0; border-radius: 8px; margin-bottom: 4px;
+            box-shadow: var(--shadow-md); overflow: hidden; display: none;
+            max-height: 200px; overflow-y: auto;
+        }
+        .select-items div { padding: 8px 12px; cursor: pointer; font-size: 12px; transition: 0.2s;}
+        .select-items div:hover { background-color: #f0f4f8; color: var(--primary-blue); }
+        .select-show { display: block; }
+
+        /* 消息输入框行 */
+        .input-row { display: flex; gap: 16px; align-items: flex-end; }
+        .msg-input {
+            flex: 1; height: 44px; min-height: 44px; max-height: 150px; overflow-y: hidden;
+            border-radius: var(--border-radius); border: 1px solid #e1e8f0;
+            padding: 12px 16px; font-size: 14px; outline: none; background: #fff;
+            resize: none; line-height: 1.5; transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .msg-input:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(137, 207, 240, 0.2); }
+        
+        .send-btn {
+            width: 44px; height: 44px; border-radius: var(--border-radius); border: none;
+            background: var(--primary-blue); color: white; font-size: 16px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(137, 207, 240, 0.4); transition: 0.2s;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .send-btn:hover { background: var(--primary-blue-hover); transform: translateY(-2px); }
+        .send-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+        /* === 设置弹窗 (居中模态框) === */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.3); backdrop-filter: blur(4px);
+            display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            width: 400px; background: #fff; border-radius: 20px;
+            display: flex; flex-direction: column; box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f4f8; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 16px; font-weight: bold; color: var(--text-main); }
+        .close-btn { background: none; border: none; font-size: 20px; color: #b0bac5; cursor: pointer; }
+        .close-btn:hover { color: #ff9999; }
+        
+        .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+        .form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
+        .form-input { width: 100%; padding: 10px 12px; border: 1px solid #e1e8f0; border-radius: 8px; outline: none; font-size: 14px; background: #f8fafc;}
+        .form-input:focus { border-color: var(--primary-blue); background: #fff;}
+        
+        .logout-btn {
+            width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; border: 1px solid #ffcccc;
+            background: #fff0f0; color: #d9534f; font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .logout-btn:hover { background: #ffcccc; }
+
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #f0f4f8; display: flex; justify-content: flex-end; gap: 12px; background: #fafbfc; border-radius: 0 0 20px 20px;}
+        .btn { padding: 8px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .btn-cancel { background: #e1e8f0; color: #666; }
+        .btn-cancel:hover { background: #d0d9e2; }
+        .btn-save { background: var(--primary-blue); color: white; }
+        .btn-save:hover { background: var(--primary-blue-hover); }
+
+        /* 加载状态 */
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 空状态提示 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-sub);
+            font-size: 14px;
+        }
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #d0e5f2;
+        }
+
+        /* 打字指示器 */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 12px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--primary-blue);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="user-header">
+            <img id="userAvatar" class="user-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=Guest&backgroundColor=89CFF0" alt="Avatar">
+            <div class="user-name" id="userName">Guest</div>
+            <button class="settings-btn" onclick="document.getElementById('settingsModal').style.display='flex'">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+
+        <div class="session-list" id="sessionList">
+            <!-- 会话列表动态生成 -->
+        </div>
+
+        <div class="sidebar-footer">
+            <button class="btn-new" onclick="createSession()"><i class="fas fa-plus"></i> 新建会话</button>
+        </div>
+    </div>
+
+    <div class="main-area">
+        
+        <div class="message-flow" id="messageFlow">
+            <div class="message-header" id="messageHeader">
+                <div class="message-header-left">
+                    <button class="sidebar-toggle" id="sidebarToggle" title="切换侧边栏">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="message-header-title" id="messageTitle">请选择会话</div>
+                </div>
+                <div class="message-header-right" style="display: flex; align-items: center; gap: 12px;">
+                    <div class="token-info" id="tokenInfo" style="font-size: 12px; color: var(--text-sub);">
+                        <i class="fas fa-coins" style="margin-right: 4px;"></i>
+                        <span id="tokenCount">0</span> tokens
+                    </div>
+                    <div class="message-header-menu">
+                        <button class="menu-btn" id="menuBtn" title="更多选项">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="menu-dropdown" id="menuDropdown">
+                            <div class="menu-item" onclick="copySessionId()">
+                                <i class="fas fa-copy"></i> 复制当前会话ID
+                            </div>
+                            <div class="menu-item" onclick="openInOpenCodeWeb()">
+                                <i class="fas fa-external-link-alt"></i> 从OpenCode Web打开
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="message-content" id="messageContent">
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-comments"></i>
+                    <p>选择一个会话开始聊天</p>
+                    <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            
+            <div class="input-top-bar">
+                <div class="config-bar">
+                    <div class="custom-select" id="modelSelect">
+                        <div class="select-selected" data-value=""><span class="select-selected-text">选择模型</span></div>
+                        <div class="select-items" id="modelItems">
+                            <!-- 模型列表动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="custom-select" id="agentSelect">
+                        <div class="select-selected" data-value=""><span class="select-selected-text">选择智能体</span></div>
+                        <div class="select-items" id="agentItems">
+                            <!-- 智能体列表动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-row">
+                <textarea class="msg-input" id="chatInput" placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" disabled></textarea>
+                <button class="send-btn" id="sendBtn" title="发送 (Enter)" disabled><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 登录弹窗 -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">登录 OpenCode</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>QQ 号</label>
+                    <input type="text" class="form-input" id="loginQQ" placeholder="请输入您的 QQ 号">
+                </div>
+                <button class="btn btn-save" style="width:100%;margin-top:16px;" onclick="handleLogin()">登录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">账号设置</div>
+                <button class="close-btn" onclick="document.getElementById('settingsModal').style.display='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>当前 QQ 号</label>
+                    <input type="text" class="form-input" id="currentQQ" readonly>
+                </div>
+                <div class="form-group">
+                    <label>工作目录</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-folder-open" style="color: var(--primary);"></i>
+                        <input type="text" class="form-input" id="workPath" value="C:\\" title="当前工作目录" style="flex: 1;">
+                    </div>
+                </div>
+                <button class="logout-btn" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" onclick="document.getElementById('settingsModal').style.display='none'">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =====================================================
+        // 全局状态管理
+        // =====================================================
+        const AppState = {
+            userQQ: null,           // 用户QQ号
+            userName: null,         // 用户名称（QQ昵称）
+            currentSession: null,   // 当前会话 {id, title, ...}
+            selectedModel: null,    // 选中的模型
+            selectedAgent: null,    // 选中的智能体
+            models: [],             // 模型列表
+            agents: [],             // 智能体列表
+            sessions: [],           // 会话列表
+            eventSource: null,      // SSE连接
+            isStreaming: false,     // 是否正在接收流式消息
+            currentAIMessage: null, // 当前AI消息容器
+            reasoningPartIds: new Set(), // reasoning类型的part ID集合
+            // State驱动渲染的数据结构
+            messages: {},           // 按会话ID分组: {sessionID: [{id, role, modelID, time}, ...]}
+            parts: {},              // 按会话ID分组: {sessionID: {partID: {id, messageID, type, text, tool, state, order}}}
+            currentMessageID: null, // 当前正在构建的消息ID
+            sessionStatus: {},      // 会话状态: {sessionID: 'idle'|'thinking'|'responding'}
+            userAtBottom: true      // 用户是否在消息流底部
+        };
+
+        // =====================================================
+        // API 调用封装
+        // =====================================================
+        const API_BASE = '';  // 同源，无需前缀
+
+        async function apiGet(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        async function apiPost(url, body) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        async function apiDelete(url) {
+            const res = await fetch(url, {method: 'DELETE'});
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        // =====================================================
+        // 登录功能
+        // =====================================================
+        async function handleLogin() {
+            const qqInput = document.getElementById('loginQQ');
+            const loginBtn = document.querySelector('#loginModal .btn-save');
+            const qq = qqInput.value.trim();
+            
+            if (!qq) {
+                alert('请输入 QQ 号');
+                return;
+            }
+            
+            if (!/^\d{5,11}$/.test(qq)) {
+                alert('请输入有效的 QQ 号 (5-11位数字)');
+                return;
+            }
+            
+            // 禁用按钮，显示加载状态
+            loginBtn.disabled = true;
+            loginBtn.textContent = '验证中...';
+            
+            try {
+                // 调用登录验证API
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qq_id: qq })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    localStorage.setItem('userQQ', qq);
+                    AppState.userQQ = qq;
+                    AppState.userName = qq;
+                    
+                    document.getElementById('loginModal').style.display = 'none';
+                    updateUserName(qq);
+                    
+                    // 初始化应用
+                    initApp();
+                } else {
+                    alert(result.error || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录请求失败:', error);
+                alert('网络错误，请稍后重试');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登录';
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('userQQ');
+            AppState.userQQ = null;
+            AppState.currentSession = null;
+            
+            // 断开 SSE
+            if (AppState.eventSource) {
+                AppState.eventSource.close();
+                AppState.eventSource = null;
+            }
+            
+            // 重置界面
+            document.getElementById('userName').textContent = 'Guest';
+            document.getElementById('userAvatar').src = 'https://api.dicebear.com/7.x/bottts/svg?seed=Guest&backgroundColor=89CFF0';
+            document.getElementById('sessionList').innerHTML = '';
+            document.getElementById('messageHeader').style.display = 'none';
+            document.getElementById('messageContent').innerHTML = `
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-comments"></i>
+                    <p>选择一个会话开始聊天</p>
+                    <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
+                </div>
+            `;
+            
+            document.getElementById('settingsModal').style.display = 'none';
+            document.getElementById('loginModal').style.display = 'flex';
+            
+            // 禁用输入
+            document.getElementById('chatInput').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+        }
+
+        function updateUserName(qq) {
+            document.getElementById('userName').textContent = `QQ: ${qq}`;
+            document.getElementById('userAvatar').src = `https://q1.qlogo.cn/g?b=qq&nk=${qq}&s=100`;
+            document.getElementById('currentQQ').value = qq;
+            
+            // 获取QQ昵称
+            fetch(`/api/qq/userinfo/${qq}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.nickname) {
+                        AppState.userName = data.nickname;
+                        document.getElementById('userName').textContent = data.nickname;
+                        console.log('[QQ] 获取昵称成功:', data.nickname);
+                    } else {
+                        console.log('[QQ] 获取昵称失败:', data.error);
+                    }
+                })
+                .catch(err => console.error('[QQ] 获取昵称失败:', err));
+        }
+
+        // =====================================================
+        // 会话管理
+        // =====================================================
+        async function loadSessions() {
+            try {
+                // 直接使用OpenCode会话列表API
+                const sessions = await apiGet('/api/opencode/sessions');
+                
+                if (!sessions || !Array.isArray(sessions)) {
+                    console.error('获取会话列表失败: 返回格式不正确');
+                    AppState.sessions = [];
+                } else {
+                    // 转换会话格式
+                    AppState.sessions = sessions.map(s => ({
+                        id: s.id,
+                        session_id: s.id,
+                        title: s.title || '未命名会话',
+                        created_at: s.time?.created ? s.time.created / 1000 : Date.now() / 1000,
+                        last_accessed: s.time?.updated ? s.time.updated / 1000 : Date.now() / 1000,
+                        directory: s.directory
+                    }));
+                }
+                
+                // 为每个会话获取最后一条消息预览
+                await Promise.all(AppState.sessions.slice(0, 20).map(async session => {
+                    const sessionId = session.session_id;
+                    try {
+                        const messages = await apiGet(`/api/opencode/sessions/${sessionId}/messages?limit=1`);
+                        if (messages && messages.length > 0) {
+                            const lastMsg = messages[messages.length - 1];
+                            let preview = '';
+                            if (lastMsg.parts && lastMsg.parts.length > 0) {
+                                const textParts = lastMsg.parts.filter(p => p.type === 'text');
+                                preview = textParts.map(p => p.text || '').join('').substring(0, 50);
+                            }
+                            if (!preview && lastMsg.info?.role) {
+                                preview = lastMsg.info.role === 'user' ? '用户消息' : 'AI回复';
+                            }
+                            preview = preview.replace(/^\[QQ用户[^}\]]*\}\s*/, '').substring(0, 30);
+                            session.last_message = preview || '暂无消息';
+                        } else {
+                            session.last_message = '暂无消息';
+                        }
+                    } catch (e) {
+                        session.last_message = '暂无消息';
+                    }
+                }));
+                
+                renderSessions();
+            } catch (error) {
+                console.error('加载会话列表失败:', error);
+            }
+        }
+
+        function renderSessions() {
+            const container = document.getElementById('sessionList');
+            container.innerHTML = '';
+            
+            if (AppState.sessions.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-sub); font-size: 13px;">
+                        暂无会话<br>点击下方按钮新建
+                    </div>
+                `;
+                return;
+            }
+            
+            // 按时间降序排序（最新的在前面）
+            const sortedSessions = [...AppState.sessions].sort((a, b) => {
+                const timeA = a.last_accessed || a.updated_at || a.time?.updated || 0;
+                const timeB = b.last_accessed || b.updated_at || b.time?.updated || 0;
+                // 处理秒级时间戳
+                const tsA = typeof timeA === 'number' ? (timeA < 1e12 ? timeA * 1000 : timeA) : new Date(timeA).getTime();
+                const tsB = typeof timeB === 'number' ? (timeB < 1e12 ? timeB * 1000 : timeB) : new Date(timeB).getTime();
+                return tsB - tsA; // 降序
+            });
+            
+            sortedSessions.forEach(session => {
+                const sessionId = session.session_id || session.id;
+                const item = document.createElement('div');
+                item.className = 'session-item' + (AppState.currentSession?.id === sessionId ? ' active' : '');
+                item.dataset.sessionId = sessionId;
+                
+                const time = session.last_accessed || session.updated_at || session.time?.updated ? formatTime(session.last_accessed || session.updated_at || session.time?.updated) : '';
+                
+                // 只有当前正在工作的会话才实时更新预览
+                let preview = session.last_message;
+                
+                // 只有当前选中的会话才从parts实时计算预览
+                if (AppState.currentSession?.id === sessionId && AppState.parts[sessionId]) {
+                    const parts = AppState.parts[sessionId];
+                    const msgs = AppState.messages[sessionId] || [];
+                    if (msgs.length > 0) {
+                        const lastMsg = msgs[msgs.length - 1];
+                        const msgParts = Object.values(parts).filter(p => p.messageID === lastMsg.id && p.type === 'text');
+                        if (msgParts.length > 0) {
+                            preview = msgParts.map(p => p.text || '').join('');
+                            // 删除QQ用户前缀
+                            preview = preview.replace(/^\[QQ用户[^}\]]*\}\s*/, '').substring(0, 30);
+                        } else if (lastMsg.role === 'user') {
+                            preview = '用户消息...';
+                        } else if (AppState.isStreaming) {
+                            preview = '思考中...';
+                        }
+                    }
+                }
+                // 删除QQ用户前缀
+                if (preview) {
+                    preview = preview.replace(/^\[QQ用户[^}\]]*\}\s*/, '').substring(0, 30);
+                }
+                if (!preview) preview = '暂无消息';
+                
+                item.innerHTML = `
+                    <div class="session-header">
+                        <span class="session-title">${escapeHtml(session.title || '新会话')}</span>
+                        <span class="session-time">${time}</span>
+                    </div>
+                    <div class="session-preview">${escapeHtml(preview)}</div>
+                    <button class="session-delete" title="删除会话" onclick="event.stopPropagation(); deleteSession('${sessionId}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                
+                item.addEventListener('click', () => selectSession(sessionId));
+                container.appendChild(item);
+            });
+        }
+
+        async function createSession() {
+            try {
+                // 使用用户会话API创建新会话
+                const result = await apiPost('/api/session/new', { user_id: AppState.userQQ });
+                if (result.success && result.session) {
+                    const session = result.session;
+                    session.session_id = session.session_id || session.id;
+                    AppState.sessions.unshift(session);
+                    renderSessions();
+                    selectSession(session.session_id);
+                } else {
+                    throw new Error(result.error || '创建会话失败');
+                }
+            } catch (error) {
+                console.error('创建会话失败:', error);
+                alert('创建会话失败: ' + error.message);
+            }
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm('确定要删除这个会话吗？')) return;
+            
+            try {
+                // 使用用户会话API删除会话
+                const result = await apiPost('/api/session/delete', { user_id: AppState.userQQ, session_id: sessionId });
+                if (result.success) {
+                    AppState.sessions = AppState.sessions.filter(s => (s.session_id || s.id) !== sessionId);
+                    
+                    if (AppState.currentSession?.id === sessionId) {
+                        AppState.currentSession = null;
+                        document.getElementById('messageHeader').style.display = 'none';
+                        document.getElementById('messageContent').innerHTML = `
+                            <div class="empty-state" id="emptyState">
+                                <i class="fas fa-comments"></i>
+                                <p>选择一个会话开始聊天</p>
+                                <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
+                            </div>
+                        `;
+                        document.getElementById('chatInput').disabled = true;
+                        document.getElementById('sendBtn').disabled = true;
+                    }
+                    
+                    renderSessions();
+                } else {
+                    throw new Error(result.error || '删除会话失败');
+                }
+            } catch (error) {
+                console.error('删除会话失败:', error);
+                alert('删除会话失败: ' + error.message);
+            }
+        }
+
+        async function selectSession(sessionId) {
+            if (!sessionId) {
+                console.error('selectSession: sessionId is undefined');
+                return;
+            }
+            
+            // 更新选中状态
+            AppState.currentSession = AppState.sessions.find(s => (s.session_id || s.id) === sessionId);
+            if (AppState.currentSession) {
+                AppState.currentSession.id = sessionId; // 确保id字段存在
+            }
+            
+            // 保存当前会话ID到localStorage
+            localStorage.setItem('currentSessionId', sessionId);
+            
+            // 更新 UI
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.sessionId === sessionId);
+            });
+            
+            // 启用输入
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            
+            // 加载消息
+            await loadMessages(sessionId);
+        }
+
+        // =====================================================
+        // 消息功能
+        // =====================================================
+        async function loadMessages(sessionId) {
+            if (!sessionId) {
+                console.error('loadMessages: sessionId is undefined');
+                return;
+            }
+            
+            try {
+                // 只请求最近20条消息，减少网络开销
+                const allMessages = await apiGet(`/api/opencode/sessions/${sessionId}/messages?limit=20`);
+                
+                const messages = allMessages || [];
+                console.log(`[消息] 加载 ${messages.length} 条消息`);
+                
+                // 保存临时用户消息（如果有）
+                const existingMessages = AppState.messages[sessionId] || [];
+                const tempUserMsg = existingMessages.find(m => m.id.startsWith('temp_user_'));
+                
+                // 转换并存储到state
+                AppState.messages[sessionId] = messages.map(msg => ({
+                    id: msg.info?.id || msg.id,  // 优先从info获取ID
+                    role: msg.info?.role || msg.role,
+                    modelID: msg.info?.modelID,
+                    agent: msg.info?.agent,
+                    time: msg.info?.time || {created: msg.created_at}
+                }));
+                
+                // 如果有临时用户消息且不在返回结果中，保留它
+                if (tempUserMsg && !messages.find(m => (m.info?.id || m.id) === tempUserMsg.id)) {
+                    AppState.messages[sessionId].push(tempUserMsg);
+                }
+                
+                // 初始化parts - 按事件接收顺序存储
+                if (!AppState.parts[sessionId]) AppState.parts[sessionId] = {};
+                messages.forEach(msg => {
+                    const msgID = msg.info?.id || msg.id;  // 优先从info获取ID
+                    if (msg.parts) {
+                        msg.parts.forEach(part => {
+                            if (part.id) {
+                                // 确保messageID被设置，不使用order字段
+                                AppState.parts[sessionId][part.id] = {
+                                    ...part,
+                                    messageID: msgID
+                                };
+                            }
+                        });
+                    }
+                });
+                
+                // 调试：检查parts分组
+                const partsByMsg = {};
+                Object.values(AppState.parts[sessionId]).forEach(p => {
+                    const key = p.messageID?.substring(0,15) || 'undefined';
+                    if (!partsByMsg[key]) partsByMsg[key] = [];
+                    partsByMsg[key].push(p.type);
+                });
+                console.log('[消息] parts分组:', partsByMsg);
+                
+                renderMessages();
+            } catch (error) {
+                console.error('加载消息失败:', error);
+            }
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messageContent');
+            const header = document.getElementById('messageHeader');
+            const titleEl = document.getElementById('messageTitle');
+            const subEl = document.getElementById('messageSub');
+            const sessionId = AppState.currentSession?.id;
+            
+            if (!sessionId) {
+                // 没有选中会话时，标题栏显示默认提示
+                if (header) header.style.display = 'flex';
+                if (titleEl) titleEl.textContent = '请选择会话';
+                if (subEl) subEl.textContent = '';
+                const tokenCountEl = document.getElementById('tokenCount');
+                if (tokenCountEl) tokenCountEl.textContent = '0';
+                container.innerHTML = `
+                    <div class="empty-state" id="emptyState">
+                        <i class="fas fa-comments"></i>
+                        <p>选择一个会话开始聊天</p>
+                        <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 更新标题栏
+            if (header) header.style.display = 'flex';
+            const session = AppState.sessions.find(s => s.id === sessionId || s.session_id === sessionId);
+            if (titleEl) titleEl.textContent = session?.title || '新会话';
+            const msgCount = (AppState.messages[sessionId] || []).length;
+            if (subEl) subEl.textContent = `${msgCount} 条消息`;
+            
+            // 显示token数量（从session.tokens获取，由message.updated事件更新）
+            const tokens = session?.tokens || {total: 0, input: 0, output: 0};
+            const tokenCountEl = document.getElementById('tokenCount');
+            if (tokenCountEl) tokenCountEl.textContent = (tokens.total || 0).toLocaleString();
+            
+            const messages = AppState.messages[sessionId] || [];
+            const parts = AppState.parts[sessionId] || {};
+            
+            // 按messageID分组parts
+            const partsByMessage = {};
+            Object.values(parts).forEach(part => {
+                if (part.messageID) {
+                    if (!partsByMessage[part.messageID]) partsByMessage[part.messageID] = [];
+                    partsByMessage[part.messageID].push(part);
+                }
+            });
+            
+            // 按时间排序消息
+            messages.sort((a, b) => {
+                const timeA = a.time?.created ? new Date(a.time.created).getTime() : 0;
+                const timeB = b.time?.created ? new Date(b.time.created).getTime() : 0;
+                return timeA - timeB;
+            });
+            
+            container.innerHTML = '';
+            
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-comment-dots"></i>
+                        <p>开始新的对话吧</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 渲染每条消息 - 使用DocumentFragment优化性能
+            const fragment = document.createDocumentFragment();
+            messages.forEach(msg => {
+                const msgParts = partsByMessage[msg.id] || [];
+                const element = renderMessage(msg, msgParts);
+                if (element) fragment.appendChild(element);
+            });
+            container.appendChild(fragment);
+            
+            // 检查是否需要显示"思考中..."
+            // 条件：正在流式接收 且 (最后一条是用户消息 或 最后一条AI消息没有实际内容)
+            console.log('[思考中检查] isStreaming:', AppState.isStreaming, 'messages:', messages.length);
+            if (AppState.isStreaming && messages.length > 0) {
+                const lastMsg = messages[messages.length - 1];
+                const lastMsgRole = lastMsg.role || lastMsg.info?.role;
+                console.log('[思考中检查] lastMsgRole:', lastMsgRole);
+                
+                let showThinking = false;
+                if (lastMsgRole === 'user') {
+                    // 最后一条是用户消息，显示思考中
+                    showThinking = true;
+                } else if (lastMsgRole === 'assistant') {
+                    // 最后一条是AI消息，检查是否有实际内容
+                    const lastMsgParts = partsByMessage[lastMsg.id] || [];
+                    const hasContent = lastMsgParts.some(p => p.text && p.text.trim());
+                    if (!hasContent) {
+                        showThinking = true;
+                    }
+                }
+                
+                console.log('[思考中检查] showThinking:', showThinking);
+                if (showThinking) {
+                    const thinkingEl = document.createElement('div');
+                    thinkingEl.className = 'msg-ai-wrap thinking-placeholder';
+                    thinkingEl.id = 'thinking-placeholder';
+                    thinkingEl.innerHTML = `
+                        <img src="https://q1.qlogo.cn/g?b=qq&nk=3938121220&s=100" alt="AI" class="ai-avatar">
+                        <div class="ai-content">
+                            <div class="ai-thinking">
+                                <span class="thinking-dots">
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                </span>
+                                <span class="thinking-text">思考中</span>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(thinkingEl);
+                }
+            }
+            
+            // 只有用户在底部时才自动滚动
+            if (AppState.userAtBottom) {
+                container.style.scrollBehavior = 'auto';
+                container.scrollTop = container.scrollHeight;
+                container.style.scrollBehavior = 'smooth';
+            }
+            
+            // 更新会话列表预览
+            renderSessions();
+        }
+
+        function renderMessage(msg, parts = []) {
+            // OpenCode 返回格式: {info: {role, ...}, parts: [...]}
+            const role = msg.role || msg.info?.role;
+            if (role === 'user') {
+                return renderUserMessage(msg);
+            } else if (role === 'assistant') {
+                return renderAIMessage(msg, parts);
+            }
+            return null;
+        }
+
+        function renderUserMessage(msg) {
+            const wrap = document.createElement('div');
+            wrap.className = 'msg-user-wrap';
+            wrap.dataset.messageId = msg.id;
+            
+            // 从state获取内容 - parts可能在msg.parts或需要从AppState.parts获取
+            let content = '';
+            const sessionId = AppState.currentSession?.id;
+            
+            // 调试：检查msg.parts和AppState.parts
+            console.log('[renderUser] msg.id:', msg.id?.substring(0,20), 'msg.parts:', msg.parts?.length, 'hasInfoParts:', !!msg.info?.parts);
+            
+            // 优先从AppState.parts获取，避免重复
+            if (sessionId && AppState.parts[sessionId]) {
+                const msgParts = Object.values(AppState.parts[sessionId])
+                    .filter(p => p.messageID === msg.id);
+                content = msgParts.map(p => p.text || '').join('');
+                console.log('[renderUser] 从AppState.parts获取, parts数量:', msgParts.length);
+            }
+            // 只有当AppState.parts中没有内容时，才从msg.parts获取
+            if (!content && msg.parts && Array.isArray(msg.parts)) {
+                content = msg.parts.map(p => p.text || '').join('');
+                console.log('[renderUser] 从msg.parts获取');
+            }
+            if (!content) content = msg.content || '';
+            
+            // 删除前缀（网页不显示前缀）
+            // 前缀格式: [QQ用户 "xxx" 发送了一个消息，请私聊回复, qq用户名称: "xxx" , 会话ID: "xxx"]
+            // 使用更宽松的正则，匹配任意空白和逗号
+            const prefixPattern = /^\[QQ用户\s*"[^"]*"\s*发送了一个消息[，,]\s*请私聊回复[，,]\s*qq用户名称:\s*"[^"]*"\s*[，,]\s*会话ID:\s*"[^"]*"\]\s*/;
+            const originalContent = content;
+            content = content.replace(prefixPattern, '');
+            
+            // 删除 <ultrawork-mode> 标签及其内容
+            content = content.replace(/<ultrawork-mode>[\s\S]*?<\/ultrawork-mode>/gi, '');
+            
+            if (originalContent !== content) {
+                console.log('[renderUser] 删除前缀/标签成功, 原长度:', originalContent.length, '新长度:', content.length);
+            }
+            
+            // 从state获取元数据
+            const modelInfo = msg.modelID || AppState.selectedModel || '';
+            const agentInfo = msg.agent || AppState.selectedAgent || '';
+            const time = msg.time?.created ? formatTime(new Date(msg.time.created).toISOString()) : '';
+            
+            wrap.innerHTML = `
+                <div class="msg-user-bubble">${escapeHtml(content)}</div>
+                <div class="msg-user-info">${modelInfo} | ${agentInfo} | ${time}</div>
+            `;
+            
+            return wrap;
+        }
+
+        function renderAIMessage(msg, parts = []) {
+            const wrap = document.createElement('div');
+            wrap.className = 'msg-ai-wrap';
+            wrap.dataset.messageId = msg.id;
+            
+            wrap.innerHTML = `
+                <img src="https://q1.qlogo.cn/g?b=qq&nk=3938121220&s=100" alt="AI" class="ai-avatar">
+                <div class="ai-content"></div>
+            `;
+            
+            const contentEl = wrap.querySelector('.ai-content');
+            
+            // 调试日志
+            console.log(`[renderAI] msg=${msg.id?.substring(0,15)} parts=${parts.length} types=${parts.map(p=>p.type).join(',')}`);
+            
+            // 如果没有传入parts，尝试从msg或state获取
+            if (parts.length === 0 && msg.parts && Array.isArray(msg.parts)) {
+                parts = msg.parts;
+                console.log(`[renderAI] 从msg.parts获取: ${parts.length}`);
+            }
+            
+            // 不排序，直接按照事件接收顺序渲染（现代JS引擎会按插入顺序遍历对象属性）
+            const sortedParts = parts;
+            
+            if (sortedParts.length > 0) {
+                sortedParts.forEach(part => {
+                    const el = renderMessagePart(part);
+                    if (el) contentEl.appendChild(el);
+                });
+            } else if (msg.content) {
+                // 简单文本内容
+                const textEl = document.createElement('div');
+                textEl.className = 'ai-text';
+                textEl.innerHTML = formatMarkdown(msg.content);
+                contentEl.appendChild(textEl);
+            } else {
+                // 没有实际内容，返回null让renderMessages显示"思考中"提示
+                console.log(`[renderAI] 无内容，跳过: msg=${msg.id?.substring(0,15)}`);
+                return null;
+            }
+            
+            return wrap;
+        }
+
+        function renderMessagePart(part) {
+            switch (part.type) {
+                case 'text':
+                    const textEl = document.createElement('div');
+                    textEl.className = 'ai-text';
+                    textEl.innerHTML = formatMarkdown(part.text);
+                    return textEl;
+                    
+                case 'reasoning':
+                case 'thought':
+                    const thoughtEl = document.createElement('div');
+                    thoughtEl.className = 'thought-block';
+                    thoughtEl.textContent = part.text || part.content || '';
+                    return thoughtEl;
+                    
+                case 'tool':
+                    // OpenCode 工具调用格式
+                    return renderToolPart(part);
+                    
+                case 'tool_call':
+                    return renderToolCard(part);
+                    
+                case 'tool_result':
+                    return renderToolResult(part);
+                    
+                default:
+                    return null;
+            }
+        }
+
+        function renderToolPart(part) {
+            // OpenCode 工具调用格式: {type: 'tool', tool: 'bash', state: {status, input, output}}
+            const card = document.createElement('div');
+            card.className = 'tool-card';
+            
+            const toolName = part.tool || 'tool';
+            const state = part.state || {};
+            const status = state.status || 'pending';
+            const input = state.input || {};
+            const output = state.output || '';
+            
+            // 根据工具类型渲染不同样式
+            if (toolName === 'read') {
+                // read工具：标题显示行号范围
+                const filePath = input.filePath || input.file_path || input.path || '';
+                const offset = input.offset || 1;
+                const limit = input.limit || 2000;
+                const content = output || '';
+                const endLine = offset + Math.min(limit, 2000) - 1;
+                const displayPath = filePath.length > 40 ? '...' + filePath.slice(-37) : filePath;
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(filePath)}">
+                        <div><i class="fas fa-file-code tool-icon"></i>read · ${escapeHtml(displayPath)} · 行${offset}-${endLine}</div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px; word-break: break-all;">文件: ${escapeHtml(filePath)}</p>
+                        <div class="diff-container" style="padding: 10px; white-space: pre-wrap; word-break: break-word;">${escapeHtml(String(content).substring(0, 3000))}${String(content).length > 3000 ? '\n...(内容过长已截断)' : ''}</div>
+                    </div>
+                `;
+            } else if (toolName === 'edit') {
+                // edit工具：默认展开，显示diff（重复行合并显示为白色）
+                card.classList.add('expanded');
+                const filePath = input.filePath || input.file_path || input.path || '';
+                const oldString = input.oldString || input.old_string || '';
+                const newString = input.newString || input.new_string || '';
+                const displayPath = filePath.length > 40 ? '...' + filePath.slice(-37) : filePath;
+                
+                // 生成智能diff显示
+                let diffHtml = '';
+                const oldLines = oldString.split('\n');
+                const newLines = newString.split('\n');
+                
+                // 简单的LCS diff算法
+                const oldSet = new Set(oldLines);
+                const newSet = new Set(newLines);
+                
+                // 先显示删除的行（红色）
+                oldLines.forEach((line, i) => {
+                    if (!newSet.has(line)) {
+                        diffHtml += `<div class="diff-line diff-del"><div class="diff-num">${i + 1}</div><div class="diff-code">-${escapeHtml(line)}</div></div>`;
+                    }
+                });
+                
+                // 再显示新增的行（绿色）
+                const startLine = oldLines.length;
+                newLines.forEach((line, i) => {
+                    if (!oldSet.has(line)) {
+                        diffHtml += `<div class="diff-line diff-add"><div class="diff-num">${startLine + i}</div><div class="diff-code">+${escapeHtml(line)}</div></div>`;
+                    }
+                });
+                
+                // 如果没有差异，显示所有行（白色表示未改变）
+                if (!diffHtml) {
+                    newLines.forEach((line, i) => {
+                        diffHtml += `<div class="diff-line" style="background:#fff;"><div class="diff-num" style="color:#999;">${i + 1}</div><div class="diff-code" style="color:#666;"> ${escapeHtml(line)}</div></div>`;
+                    });
+                }
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(filePath)}">
+                        <div><i class="fas fa-edit tool-icon" style="color:#f6c23e;"></i>edit · ${escapeHtml(displayPath)}</div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px; word-break: break-all;">文件: ${escapeHtml(filePath)}</p>
+                        <div class="diff-container">${diffHtml || '<div style="padding:10px;color:#666;">无变更内容</div>'}</div>
+                    </div>
+                `;
+            } else if (toolName === 'bash') {
+                // bash工具：标题显示描述内容
+                card.classList.add('expanded');
+                const command = input.command || input.cmd || '';
+                const description = input.description || '';
+                const exitCode = state.exitCode !== undefined ? state.exitCode : (output.includes('Exit Code:') ? output.match(/Exit Code:\s*(\d+)/)?.[1] : '0');
+                const is_success = exitCode === 0 || exitCode === '0';
+                
+                // 标题优先显示description，没有则显示命令
+                const displayTitle = description || command;
+                const shortTitle = displayTitle.length > 50 ? displayTitle.substring(0, 47) + '...' : displayTitle;
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(displayTitle)}">
+                        <div><i class="fas fa-terminal tool-icon" style="color:#333;"></i>bash · ${escapeHtml(shortTitle)}</div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        <div class="bash-cmd">$ ${escapeHtml(command)}
+${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring(0, 2000))}${String(output).length > 2000 ? '\n...(输出过长已截断)' : ''}</div>
+                        <div class="bash-status" style="color: ${is_success ? '#28a745' : '#dc3545'};">
+                            <i class="fas ${is_success ? 'fa-check-circle' : 'fa-times-circle'}"></i> 
+                            Exit Code: ${exitCode} ${is_success ? '(Success)' : '(Failed)'}
+                        </div>
+                    </div>
+                `;
+            } else if (toolName === 'write' || toolName === 'write_file') {
+                // write工具
+                const filePath = input.filePath || input.file_path || input.path || '';
+                const content = input.content || '';
+                const displayPath = filePath.length > 50 ? '...' + filePath.slice(-47) : filePath;
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(filePath)}">
+                        <div><i class="fas fa-file-write tool-icon" style="color:#17a2b8;"></i>write · ${escapeHtml(displayPath)}</div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px; word-break: break-all;">文件: ${escapeHtml(filePath)}</p>
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">写入 ${content.length} 字符</p>
+                        <div class="diff-container" style="padding: 10px; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto;">${escapeHtml(content.substring(0, 1000))}${content.length > 1000 ? '\n...(内容过长已截断)' : ''}</div>
+                    </div>
+                `;
+            } else if (toolName.includes('skill_mcp')) {
+                // MCP工具调用
+                const mcpName = input.mcp_name || '';
+                const toolInput = input.tool_name || '';
+                const args = input.arguments || {};
+                
+                // 只有qq-mcp才显示QQ样式
+                const isQQMcp = mcpName === 'qq-mcp' || mcpName.includes('qq');
+                
+                if (isQQMcp) {
+                    // QQ MCP工具：特殊样式
+                    card.classList.add('qq-card', 'expanded');
+                    
+                    // 判断是私聊还是群聊
+                    let chatType = '';
+                    let chatTarget = '';
+                    if (args.params) {
+                        if (args.params.message_type === 'private') {
+                            chatType = '私聊';
+                            chatTarget = args.params.target_id || '';
+                        } else if (args.params.message_type === 'group') {
+                            chatType = '群聊';
+                            chatTarget = args.params.target_id || '';
+                        }
+                    }
+                    
+                    const message = args.params?.message || '';
+                    
+                    card.innerHTML = `
+                        <div class="tool-header" onclick="toggleTool(this)">
+                            <div><i class="fab fa-qq qq-icon tool-icon"></i>${chatType ? `${chatType} ${chatTarget}` : 'QQ MCP'}</div>
+                            <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                        </div>
+                        <div class="tool-body">
+                            <p style="font-size: 13px; margin-bottom: 6px;"><strong>[${mcpName}: ${toolInput}]</strong></p>
+                            ${message ? `<div style="background: #f8fbff; padding: 10px; border-radius: 6px; border: 1px solid #e1e8f0; font-size: 13px;">${escapeHtml(message.substring(0, 500))}${message.length > 500 ? '...' : ''}</div>` : ''}
+                            ${output ? `<p style="margin-top: 8px; font-size: 12px; color: #28a745;"><i class="fas fa-check-circle"></i> 执行成功</p>` : ''}
+                        </div>
+                    `;
+                } else {
+                    // 其他MCP工具：通用样式
+                    card.classList.add('expanded');
+                    const displayArgs = args.params || args;
+                    
+                    // 状态图标
+                    let statusIcon = 'fa-spinner fa-spin';
+                    let statusColor = '#f6c23e';
+                    if (status === 'completed') {
+                        statusIcon = 'fa-check-circle';
+                        statusColor = '#28a745';
+                    } else if (status === 'error' || status === 'failed') {
+                        statusIcon = 'fa-times-circle';
+                        statusColor = '#dc3545';
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="tool-header" onclick="toggleTool(this)">
+                            <div><i class="fas fa-plug tool-icon" style="color:#6366f1;"></i>${mcpName || 'MCP'}: ${toolInput} <i class="fas ${statusIcon}" style="color:${statusColor};font-size:12px;margin-left:8px;"></i></div>
+                            <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                        </div>
+                        <div class="tool-body">
+                            ${Object.keys(displayArgs).length > 0 ? `<div style="margin-bottom:8px;font-size:12px;color:#666;"><strong>参数:</strong></div><pre style="margin:0;white-space:pre-wrap;font-size:12px;color:#666;background:#f8fafc;padding:8px;border-radius:6px;max-height:150px;overflow-y:auto;">${escapeHtml(JSON.stringify(displayArgs, null, 2))}</pre>` : ''}
+                            ${output ? `<div style="margin-top:8px;font-size:12px;color:#666;"><strong>结果:</strong></div><div class="bash-cmd" style="margin-top:4px;max-height:200px;overflow-y:auto;">${escapeHtml(String(output).substring(0, 2000))}${String(output).length > 2000 ? '...' : ''}</div>` : ''}
+                        </div>
+                    `;
+                }
+            } else if (toolName === 'grep' || toolName.includes('grep')) {
+                // grep工具：标题显示搜索的文件和关键词，默认折叠
+                const pattern = input.pattern || input.query || input.keyword || '';
+                const path = input.path || input.filePath || input.file_path || '';
+                const displayPath = path.length > 30 ? '...' + path.slice(-27) : path;
+                const displayPattern = pattern.length > 20 ? pattern.substring(0, 17) + '...' : pattern;
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(path)} | ${escapeHtml(pattern)}">
+                        <div><i class="fas fa-search tool-icon"></i>grep · ${escapeHtml(displayPath || '多文件')} · "${escapeHtml(displayPattern)}"</div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">路径: ${escapeHtml(path || '多文件')}</p>
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">关键词: ${escapeHtml(pattern)}</p>
+                        <div class="bash-cmd" style="max-height: 300px; overflow-y: auto;">${escapeHtml(String(output).substring(0, 3000))}${String(output).length > 3000 ? '\n...(结果过长已截断)' : ''}</div>
+                    </div>
+                `;
+            } else {
+                // 通用工具卡片
+                let iconClass = 'fa-cog';
+                let iconColor = '';
+                
+                if (toolName.includes('grep') || toolName.includes('search')) {
+                    iconClass = 'fa-search';
+                } else if (toolName.includes('glob') || toolName.includes('find')) {
+                    iconClass = 'fa-folder-open';
+                } else if (toolName.includes('web') || toolName.includes('fetch')) {
+                    iconClass = 'fa-globe';
+                }
+                
+                // 状态图标
+                let statusIcon = 'fa-spinner fa-spin';
+                let statusColor = '#f6c23e';
+                if (status === 'completed') {
+                    statusIcon = 'fa-check-circle';
+                    statusColor = '#28a745';
+                    card.classList.add('expanded');
+                } else if (status === 'error' || status === 'failed') {
+                    statusIcon = 'fa-times-circle';
+                    statusColor = '#dc3545';
+                    card.classList.add('expanded');
+                }
+                
+                card.innerHTML = `
+                    <div class="tool-header" onclick="toggleTool(this)">
+                        <div><i class="fas ${iconClass} tool-icon" style="${iconColor}"></i>${escapeHtml(toolName)} <i class="fas ${statusIcon}" style="color:${statusColor};font-size:12px;margin-left:8px;"></i></div>
+                        <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                    </div>
+                    <div class="tool-body">
+                        ${Object.keys(input).length > 0 ? `<div style="margin-bottom:8px;font-size:12px;color:#666;"><strong>输入:</strong></div><pre style="margin:0;white-space:pre-wrap;font-size:12px;color:#666;background:#f8fafc;padding:8px;border-radius:6px;max-height:150px;overflow-y:auto;">${escapeHtml(JSON.stringify(input, null, 2))}</pre>` : ''}
+                        ${output ? `<div style="margin-top:8px;font-size:12px;color:#666;"><strong>输出:</strong></div><div class="bash-cmd" style="margin-top:4px;max-height:200px;overflow-y:auto;">${escapeHtml(String(output).substring(0, 2000))}${String(output).length > 2000 ? '...' : ''}</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            return card;
+        }
+
+        function renderToolCard(part) {
+            const card = document.createElement('div');
+            card.className = 'tool-card';
+            
+            const toolName = part.name || part.tool_name || 'tool';
+            const toolInput = part.input || part.arguments || {};
+            
+            // 根据工具类型选择图标
+            let iconClass = 'fa-cog';
+            let iconColor = '';
+            
+            if (toolName.includes('read') || toolName.includes('file')) {
+                iconClass = 'fa-file-code';
+            } else if (toolName.includes('edit') || toolName.includes('write')) {
+                iconClass = 'fa-edit';
+                iconColor = 'color:#f6c23e;';
+            } else if (toolName.includes('bash') || toolName.includes('terminal')) {
+                iconClass = 'fa-terminal';
+                iconColor = 'color:#333;';
+            } else if (toolName.includes('qq') || toolName.includes('message')) {
+                iconClass = 'fa-qq';
+                iconClass = 'fab fa-qq';
+                card.classList.add('qq-card');
+            }
+            
+            card.innerHTML = `
+                <div class="tool-header" onclick="toggleTool(this)">
+                    <div><i class="fas ${iconClass} tool-icon" style="${iconColor}"></i>${escapeHtml(toolName)}</div>
+                    <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                </div>
+                <div class="tool-body">
+                    <pre style="margin:0;white-space:pre-wrap;font-size:12px;color:#666;">${escapeHtml(JSON.stringify(toolInput, null, 2))}</pre>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function renderToolResult(part) {
+            const card = document.createElement('div');
+            card.className = 'tool-card expanded';
+            
+            const toolName = part.name || part.tool_name || 'result';
+            const result = part.content || part.result || '';
+            
+            card.innerHTML = `
+                <div class="tool-header" onclick="toggleTool(this)">
+                    <div><i class="fas fa-check-circle tool-icon" style="color:#28a745;"></i>${escapeHtml(toolName)} - 结果</div>
+                    <i class="fas fa-chevron-down tool-toggle-icon"></i>
+                </div>
+                <div class="tool-body">
+                    <div class="bash-cmd">${escapeHtml(String(result).substring(0, 1000))}${String(result).length > 1000 ? '...' : ''}</div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const content = input.value.trim();
+            
+            if (!content || !AppState.currentSession) return;
+            
+            const sessionId = AppState.currentSession.id;
+            
+            // 清空输入
+            input.value = '';
+            input.style.height = '44px';
+            
+            // 禁用发送按钮
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            AppState.isStreaming = true;
+            AppState.reasoningPartIds.clear(); // 清空reasoning追踪
+            
+            // 初始化state
+            if (!AppState.messages[sessionId]) {
+                AppState.messages[sessionId] = [];
+            }
+            if (!AppState.parts[sessionId]) {
+                AppState.parts[sessionId] = {};
+            }
+            
+            // 创建临时用户消息ID
+            const tempUserMsgID = `temp_user_${Date.now()}`;
+            
+            // 添加用户消息到state
+            AppState.messages[sessionId].push({
+                id: tempUserMsgID,
+                role: 'user',
+                modelID: AppState.selectedModel,
+                agent: AppState.selectedAgent,
+                time: {created: Date.now()}
+            });
+            
+            // 添加用户消息的part
+            AppState.parts[sessionId][`part_${tempUserMsgID}`] = {
+                id: `part_${tempUserMsgID}`,
+                messageID: tempUserMsgID,
+                type: 'text',
+                text: content
+            };
+            
+            // 更新session的last_message
+            const session = AppState.sessions.find(s => s.id === sessionId);
+            if (session) {
+                session.last_message = content.substring(0, 30);
+            }
+            
+            // 渲染消息（会自动显示"思考中..."）
+            renderMessages();
+            
+            try {
+                // 构建前缀（发送到API时添加，但网页不显示）
+                const prefix = `[QQ用户 "${AppState.userQQ}" 发送了一个消息，请私聊回复, qq用户名称: "${AppState.userName || AppState.userQQ}" , 会话ID: "${sessionId}"]\n\n`;
+                
+                // 构建请求体，包含模型和智能体参数
+                const requestBody = {
+                    parts: [{type: 'text', text: prefix + content}]
+                };
+                
+                // 解析模型参数 - OpenCode API需要 {modelID, providerID} 格式
+                if (AppState.selectedModel) {
+                    const modelParts = AppState.selectedModel.split('/');
+                    if (modelParts.length >= 2) {
+                        requestBody.model = {
+                            modelID: modelParts.slice(1).join('/'),
+                            providerID: modelParts[0]
+                        };
+                    } else {
+                        requestBody.model = {
+                            modelID: AppState.selectedModel,
+                            providerID: ''
+                        };
+                    }
+                }
+                if (AppState.selectedAgent) {
+                    requestBody.agent = AppState.selectedAgent;
+                }
+                
+                console.log('[API] 发送消息到会话:', sessionId);
+                const result = await apiPost(`/api/opencode/sessions/${sessionId}/messages`, requestBody);
+                console.log('[API] 消息发送结果:', result);
+                
+                // 更新后端会话数据的 last_accessed 时间
+                apiPost('/api/session/switch', { user_id: AppState.userQQ, session_id: sessionId }).catch(e => {
+                    console.warn('[API] 更新会话时间失败:', e);
+                });
+                
+                // 注意：不在这里设置 isStreaming = false，等待 message.updated 事件
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                sendBtn.disabled = false;
+                AppState.isStreaming = false;
+                
+                // 添加错误消息
+                if (!AppState.messages[sessionId]) {
+                    AppState.messages[sessionId] = [];
+                }
+                if (!AppState.parts[sessionId]) {
+                    AppState.parts[sessionId] = {};
+                }
+                
+                // 创建错误消息
+                const errorMsgID = `error_msg_${Date.now()}`;
+                AppState.messages[sessionId].push({
+                    id: errorMsgID,
+                    role: 'assistant',
+                    time: {created: Date.now()}
+                });
+                
+                const errorPartID = `error_part_${Date.now()}`;
+                AppState.parts[sessionId][errorPartID] = {
+                    id: errorPartID,
+                    messageID: errorMsgID,
+                    type: 'text',
+                    text: `发送失败: ${error.message}`
+                };
+                renderMessages();
+            }
+        }
+
+        // =====================================================
+        // SSE 事件流
+        // =====================================================
+        function connectSSE() {
+            if (AppState.eventSource) {
+                AppState.eventSource.close();
+            }
+            
+            AppState.eventSource = new EventSource('/api/opencode/events');
+            
+            AppState.eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleSSEEvent(data);
+                } catch (e) {
+                    console.error('SSE 解析错误:', e);
+                }
+            };
+            
+            AppState.eventSource.onerror = (e) => {
+                console.error('SSE 连接错误:', e);
+                // 5秒后重连
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        function handleSSEEvent(rawData) {
+            // OpenCode SSE 格式: {directory, payload: {type, properties: {...}}}
+            const type = rawData.payload?.type || rawData.type || rawData.event;
+            const props = rawData.payload?.properties || rawData;
+            
+            // 检查是否是当前会话的事件
+            // 注意：不同事件类型的sessionID位置不同
+            let sessionId = props.sessionID || props.part?.sessionID || rawData.session_id;
+            
+            // 调试日志
+            console.log('[SSE]', type, sessionId ? `(session: ${sessionId.substring(0,20)}...)` : '(no session)');
+            
+            // 使用当前会话ID（用于需要当前会话上下文的事件）
+            const currentSessionId = AppState.currentSession?.id;
+            
+            switch (type) {
+                case 'server.connected':
+                    console.log('SSE 连接成功');
+                    break;
+                    
+                case 'server.heartbeat':
+                    // 心跳，忽略
+                    break;
+                    
+                case 'message.part.delta':
+                    // 流式文本增量 - 更新state
+                    const deltaSessionId = props.sessionID;
+                    const partID = props.partID;
+                    const delta = props.delta || '';
+                    const field = props.field || 'text';
+                    const deltaMessageID = props.messageID;  // 获取messageID
+                    
+                    console.log('[SSE] delta:', delta?.substring(0,30), 'field:', field, 'session:', deltaSessionId?.substring(0,20));
+                    
+                    if (deltaSessionId && partID && field === 'text') {
+                        // 初始化parts
+                        if (!AppState.parts[deltaSessionId]) {
+                            AppState.parts[deltaSessionId] = {};
+                        }
+                        
+                        // 初始化messages
+                        if (!AppState.messages[deltaSessionId]) {
+                            AppState.messages[deltaSessionId] = [];
+                        }
+                        
+                        // 如果有messageID，确保对应的AI消息存在
+                        if (deltaMessageID) {
+                            const existingMsg = AppState.messages[deltaSessionId].find(m => m.id === deltaMessageID);
+                            if (!existingMsg) {
+                                AppState.messages[deltaSessionId].push({
+                                    id: deltaMessageID,
+                                    role: 'assistant',
+                                    sessionID: deltaSessionId,
+                                    time: {created: Date.now()}
+                                });
+                            }
+                            AppState.currentMessageID = deltaMessageID;
+                        }
+                        
+                        // 获取或创建part - 不使用order字段，按照事件接收顺序
+                        if (!AppState.parts[deltaSessionId][partID]) {
+                            AppState.parts[deltaSessionId][partID] = { 
+                                text: '', 
+                                id: partID,
+                                messageID: deltaMessageID  // 设置messageID
+                            };
+                        } else if (deltaMessageID && !AppState.parts[deltaSessionId][partID].messageID) {
+                            // 如果已有part但没有messageID，补充设置
+                            AppState.parts[deltaSessionId][partID].messageID = deltaMessageID;
+                        }
+                        
+                        // 追加文本
+                        AppState.parts[deltaSessionId][partID].text = 
+                            (AppState.parts[deltaSessionId][partID].text || '') + delta;
+                        
+                        // 如果是当前会话，重新渲染
+                        if (AppState.currentSession?.id === deltaSessionId) {
+                            renderMessages();
+                        }
+                    }
+                    break;
+                    
+                case 'message.part.updated':
+                    // 消息部分更新（工具调用等）
+                    const part = props.part || {};
+                    const partSessionId = part.sessionID;
+                    const partId = part.id;
+                    const partMessageID = part.messageID || props.messageID;  // messageID可能在part或props中
+                    
+                    console.log('[SSE] part updated:', part.type, part.tool || '', 'session:', partSessionId?.substring(0,20), 'messageID:', partMessageID?.substring(0,15));
+                    
+                    if (partSessionId && partId) {
+                        // 初始化parts
+                        if (!AppState.parts[partSessionId]) {
+                            AppState.parts[partSessionId] = {};
+                        }
+                        
+                        // 初始化messages
+                        if (!AppState.messages[partSessionId]) {
+                            AppState.messages[partSessionId] = [];
+                        }
+                        
+                        // 如果有messageID，确保对应的AI消息存在
+                        if (partMessageID) {
+                            const existingMsg = AppState.messages[partSessionId].find(m => m.id === partMessageID);
+                            if (!existingMsg) {
+                                AppState.messages[partSessionId].push({
+                                    id: partMessageID,
+                                    role: 'assistant',
+                                    sessionID: partSessionId,
+                                    time: {created: Date.now()}
+                                });
+                            }
+                            AppState.currentMessageID = partMessageID;
+                        }
+                        
+                        // 更新或创建part - 不使用order字段，按照事件接收顺序
+                        AppState.parts[partSessionId][partId] = {
+                            ...AppState.parts[partSessionId][partId],
+                            ...part,
+                            messageID: partMessageID || AppState.parts[partSessionId][partId]?.messageID  // 优先使用新的messageID
+                        };
+                        
+                        // 如果是当前会话，重新渲染
+                        if (AppState.currentSession?.id === partSessionId) {
+                            renderMessages();
+                        }
+                    }
+                    break;
+                    
+case 'message.updated':
+                    // 消息更新 - 从 props.info 获取消息信息
+                    const info = props.info || {};
+                    const msgSessionId = info.sessionID;
+                    const msgId = info.id;
+                    const msgRole = info.role;
+                    
+                    console.log('[SSE] message.updated:', msgRole, 'id:', msgId?.substring(0,15), 'session:', msgSessionId?.substring(0,20), 'tokens:', info.tokens);
+                    
+                    if (msgSessionId && msgId) {
+                        // 初始化messages
+                        if (!AppState.messages[msgSessionId]) {
+                            AppState.messages[msgSessionId] = [];
+                        }
+                        
+                        // 检查是否已存在
+                        const existing = AppState.messages[msgSessionId].find(m => m.id === msgId);
+                        if (existing) {
+                            // 更新现有消息
+                            Object.assign(existing, info);
+                        } else {
+                            // 检查是否有同角色的临时消息需要替换
+                            const tempMsg = AppState.messages[msgSessionId].find(
+                                m => m.id.toString().startsWith('temp_') && m.role === msgRole
+                            );
+                            if (tempMsg) {
+                                // 替换临时消息，保留parts引用
+                                const idx = AppState.messages[msgSessionId].indexOf(tempMsg);
+                                const oldId = tempMsg.id;
+                                AppState.messages[msgSessionId][idx] = info;
+                                
+                                // 删除临时用户消息的parts（用户消息的parts应该由API返回）
+                                if (msgRole === 'user' && AppState.parts[msgSessionId]) {
+                                    // 删除所有临时用户消息的parts
+                                    const tempPartPrefix = `part_${oldId}`;
+                                    Object.keys(AppState.parts[msgSessionId]).forEach(partId => {
+                                        if (partId.startsWith(tempPartPrefix) || AppState.parts[msgSessionId][partId].messageID === oldId) {
+                                            delete AppState.parts[msgSessionId][partId];
+                                            console.log('[SSE] 删除临时用户part:', partId);
+                                        }
+                                    });
+                                }
+                                
+                                // 对于AI消息，更新临时parts的messageID
+                                if (msgRole === 'assistant' && AppState.parts[msgSessionId]) {
+                                    // 检查是否已经有新的parts（来自SSE事件）
+                                    const newPartsExist = Object.values(AppState.parts[msgSessionId])
+                                        .some(p => p.messageID === msgId && !p.id.toString().startsWith('part_temp_'));
+                                    
+                                    if (newPartsExist) {
+                                        // 新parts已存在，删除旧的临时parts
+                                        Object.keys(AppState.parts[msgSessionId]).forEach(partId => {
+                                            if (AppState.parts[msgSessionId][partId].messageID === oldId) {
+                                                delete AppState.parts[msgSessionId][partId];
+                                                console.log('[SSE] 删除临时AI part:', partId);
+                                            }
+                                        });
+                                    } else {
+                                        // 没有新parts，更新临时parts的messageID
+                                        Object.values(AppState.parts[msgSessionId]).forEach(part => {
+                                            if (part.messageID === oldId) {
+                                                part.messageID = msgId;
+                                            }
+                                        });
+                                    }
+                                }
+                                console.log('[SSE] 替换临时消息:', msgRole, 'oldId:', oldId, 'newId:', msgId);
+                            } else {
+                                // 新增消息
+                                AppState.messages[msgSessionId].push(info);
+                            }
+                        }
+                        
+                        // 更新currentMessageID
+                        AppState.currentMessageID = msgId;
+                        
+                        // 更新session的last_message、tokens和时间
+                        const session = AppState.sessions.find(s => s.id === msgSessionId);
+                        if (session) {
+                            // 从parts获取最后一条消息的文本
+                            const parts = AppState.parts[msgSessionId] || {};
+                            const lastMsgParts = Object.values(parts).filter(p => p.messageID === msgId && p.type === 'text');
+                            if (lastMsgParts.length > 0) {
+                                session.last_message = lastMsgParts.map(p => p.text || '').join('').substring(0, 30);
+                            }
+                            // 更新tokens（从info.tokens获取）
+                            if (info.tokens) {
+                                session.tokens = info.tokens;
+                                console.log('[SSE] 更新tokens:', info.tokens);
+                            } else {
+                                console.log('[SSE] 没有tokens信息, info:', JSON.stringify(info).substring(0, 200));
+                            }
+                            // 更新会话时间
+                            session.updated_at = info.time?.updated || info.time?.created || Date.now();
+                            // 更新UI
+                            const tokens = session.tokens || {total: 0, input: 0, output: 0};
+                            document.getElementById('tokenCount').textContent = (tokens.total || 0).toLocaleString();
+                            // 刷新会话列表显示最新时间
+                            renderSessions();
+                        }
+                        
+                        // 如果是当前会话，重新渲染（会自动更新会话列表预览）
+                        if (AppState.currentSession?.id === msgSessionId) {
+                            renderMessages();
+                        }
+                        
+                        // AI消息更新完成时，重置流式状态和发送按钮
+                        if (msgRole === 'assistant') {
+                            AppState.isStreaming = false;
+                            document.getElementById('sendBtn').disabled = false;
+                        }
+                    }
+                    break;
+                    
+                case 'session.status':
+                    // 存储会话状态
+                    const statusSessionId = props.sessionID;
+                    const statusValue = props.status || 'idle';
+                    if (statusSessionId) {
+                        AppState.sessionStatus[statusSessionId] = statusValue;
+                        // 如果是当前会话，可能需要更新UI
+                        if (AppState.currentSession?.id === statusSessionId) {
+                            renderMessages();
+                        }
+                    }
+                    break;
+                    
+                case 'session.created':
+                    // 新会话创建 - 只添加到列表，不重新获取所有
+                    // loadSessions会处理这个
+                    break;
+                    
+                case 'session.updated':
+                    // 会话更新 - 只更新特定会话
+                    const updatedSessionId = props.sessionID || props.id;
+                    if (updatedSessionId) {
+                        const session = AppState.sessions.find(s => s.id === updatedSessionId);
+                        if (session && props.title) {
+                            session.title = props.title;
+                            session.updated_at = props.updated_at || Date.now();
+                            renderSessions();
+                        }
+                    }
+                    break;
+                    
+                case 'message_start':
+                    // 消息开始 - 清理旧状态
+                    break;
+                    
+                case 'done':
+                case 'message_end':
+                    // 消息结束
+                    AppState.isStreaming = false;
+                    document.getElementById('sendBtn').disabled = false;
+                    break;
+                    
+                case 'error':
+                    // 错误
+                    AppState.isStreaming = false;
+                    document.getElementById('sendBtn').disabled = false;
+                    console.error('SSE错误:', props.message || rawData.message || rawData.error || '未知错误');
+                    break;
+                    
+                default:
+                    console.log('未处理的 SSE 事件:', type, rawData);
+            }
+        }
+
+        // =====================================================
+        // 配置选择
+        // =====================================================
+        
+        // 从config.yaml获取的配置（硬编码，与config.yaml保持一致）
+        const CONFIG_MODELS = [
+            "opencode/big-pickle",
+            "opencode/gpt-5-nano",
+            "opencode/minimax-m2.5-free",
+            "opencode/trinity-large-preview-free",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-reasoner",
+            "alibaba-coding-plan-cn/qwen3.5-plus",
+            "alibaba-coding-plan-cn/qwen3-max-2026-01-23",
+            "alibaba-coding-plan-cn/qwen3-coder-next",
+            "alibaba-coding-plan-cn/qwen3-coder-plus",
+            "alibaba-coding-plan-cn/glm-5",
+            "alibaba-coding-plan-cn/glm-4.7",
+            "alibaba-coding-plan-cn/kimi-k2.5",
+            "alibaba-coding-plan-cn/minimax-m2.5"
+        ];
+        
+        const CONFIG_AGENTS = [
+            "Sisyphus (Ultraworker)",
+            "Prometheus",
+            "Atlas"
+        ];
+        
+        const CONFIG_DEFAULT_MODEL = "alibaba-coding-plan-cn/glm-5";
+        const CONFIG_DEFAULT_AGENT = "Sisyphus (Ultraworker)";
+        
+        async function loadModels() {
+            try {
+                // 使用config.yaml中的模型列表
+                AppState.models = CONFIG_MODELS.map(id => {
+                    const parts = id.split('/');
+                    const modelId = parts.slice(1).join('/');
+                    const provider = parts[0];
+                    return {
+                        id: id,
+                        name: modelId || id,
+                        provider: provider
+                    };
+                });
+                console.log('加载模型列表:', AppState.models.length, '个');
+                renderModelSelect();
+            } catch (error) {
+                console.error('加载模型列表失败:', error);
+            }
+        }
+        
+        async function loadAgents() {
+            try {
+                // 使用config.yaml中的智能体列表
+                AppState.agents = CONFIG_AGENTS.map(name => ({
+                    id: name,
+                    name: name
+                }));
+                console.log('加载智能体列表:', AppState.agents.length, '个');
+                renderAgentSelect();
+            } catch (error) {
+                console.error('加载智能体列表失败:', error);
+            }
+        }
+
+        function renderModelSelect() {
+            const container = document.getElementById('modelItems');
+            const selected = document.querySelector('#modelSelect .select-selected');
+            const selectedText = selected.querySelector('.select-selected-text');
+            
+            container.innerHTML = '';
+            
+            if (AppState.models.length === 0) {
+                container.innerHTML = '<div style="padding:8px 12px;color:#999;">暂无可用模型</div>';
+                return;
+            }
+            
+            AppState.models.forEach(model => {
+                const item = document.createElement('div');
+                item.textContent = model.name || model.id || model;
+                item.dataset.value = model.id || model;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();  // 阻止事件冒泡
+                    selectedText.textContent = item.textContent;
+                    selected.dataset.value = item.dataset.value;
+                    AppState.selectedModel = item.dataset.value;
+                    container.classList.remove('select-show');
+                });
+                container.appendChild(item);
+            });
+            
+            // 默认选中配置中的默认值
+            const defaultModel = AppState.models.find(m => m.id === CONFIG_DEFAULT_MODEL);
+            if (defaultModel) {
+                selectedText.textContent = defaultModel.name || defaultModel.id;
+                selected.dataset.value = defaultModel.id;
+                AppState.selectedModel = defaultModel.id;
+            } else if (AppState.models.length > 0) {
+                const first = AppState.models[0];
+                selectedText.textContent = first.name || first.id || first;
+                selected.dataset.value = first.id || first;
+                AppState.selectedModel = first.id || first;
+            }
+        }
+
+        function renderAgentSelect() {
+            const container = document.getElementById('agentItems');
+            const selected = document.querySelector('#agentSelect .select-selected');
+            const selectedText = selected.querySelector('.select-selected-text');
+            
+            container.innerHTML = '';
+            
+            if (AppState.agents.length === 0) {
+                container.innerHTML = '<div style="padding:8px 12px;color:#999;">暂无可用智能体</div>';
+                return;
+            }
+            
+            AppState.agents.forEach(agent => {
+                const item = document.createElement('div');
+                item.textContent = agent.name || agent.id || agent;
+                item.dataset.value = agent.id || agent;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();  // 阻止事件冒泡
+                    selectedText.textContent = item.textContent;
+                    selected.dataset.value = item.dataset.value;
+                    AppState.selectedAgent = item.dataset.value;
+                    container.classList.remove('select-show');
+                });
+                container.appendChild(item);
+            });
+            
+            // 默认选中配置中的默认值
+            const defaultAgent = AppState.agents.find(a => a.id === CONFIG_DEFAULT_AGENT);
+            if (defaultAgent) {
+                selectedText.textContent = defaultAgent.name || defaultAgent.id;
+                selected.dataset.value = defaultAgent.id;
+                AppState.selectedAgent = defaultAgent.id;
+            } else if (AppState.agents.length > 0) {
+                const first = AppState.agents[0];
+                selectedText.textContent = first.name || first.id || first;
+                selected.dataset.value = first.id || first;
+                AppState.selectedAgent = first.id || first;
+            }
+        }
+
+        // =====================================================
+        // 工具函数
+        // =====================================================
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            // 处理数字时间戳：秒级(<1e12)需要乘以1000转换为毫秒
+            let timestamp = isoString;
+            if (typeof isoString === 'number') {
+                timestamp = isoString < 1e12 ? isoString * 1000 : isoString;
+            }
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+            if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+            
+            return date.toLocaleDateString('zh-CN', {month: 'short', day: 'numeric'});
+        }
+
+        function formatMarkdown(text) {
+            if (!text) return '';
+            // 简单的 Markdown 格式化
+            return text
+                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:#f8fafc;padding:12px;border-radius:8px;overflow-x:auto;font-family:monospace;font-size:12px;">$2</pre>')
+                .replace(/`([^`]+)`/g, '<code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;color:#d63384;">$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // =====================================================
+        // UI 交互
+        // =====================================================
+        function toggleTool(headerEl) {
+            const card = headerEl.parentElement;
+            card.classList.toggle('expanded');
+        }
+
+        // 自定义下拉框逻辑
+        function initCustomSelects() {
+            document.querySelectorAll('.custom-select').forEach(wrapper => {
+                const selected = wrapper.querySelector('.select-selected');
+                const itemsList = wrapper.querySelector('.select-items');
+
+                selected.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeAllSelects(this);
+                    itemsList.classList.toggle('select-show');
+                });
+            });
+        }
+
+        function closeAllSelects(except) {
+            document.querySelectorAll('.select-items').forEach(items => {
+                if (items.previousElementSibling !== except) {
+                    items.classList.remove('select-show');
+                }
+            });
+        }
+
+        // Textarea 自适应高度
+        function initTextarea() {
+            const chatInput = document.getElementById('chatInput');
+            
+            chatInput.addEventListener('input', function() {
+                this.style.height = '44px';
+                if (this.scrollHeight > 150) {
+                    this.style.height = '150px';
+                    this.style.overflowY = 'auto';
+                } else {
+                    this.style.height = this.scrollHeight + 'px';
+                    this.style.overflowY = 'hidden';
+                }
+            });
+
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (this.value.trim() && !AppState.isStreaming) {
+                        sendMessage();
+                    }
+                }
+            });
+        }
+
+        // 发送按钮点击
+        function initSendButton() {
+            document.getElementById('sendBtn').addEventListener('click', () => {
+                if (!AppState.isStreaming) {
+                    sendMessage();
+                }
+            });
+        }
+
+        // =====================================================
+        // 标题栏菜单功能
+        // =====================================================
+        function toggleMenu() {
+            const dropdown = document.getElementById('menuDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function copySessionId() {
+            const sessionId = AppState.currentSession?.id;
+            if (sessionId) {
+                navigator.clipboard.writeText(sessionId).then(() => {
+                    alert('会话ID已复制: ' + sessionId);
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                });
+            }
+            toggleMenu(); // 关闭菜单
+        }
+
+        function openInOpenCodeWeb() {
+            const sessionId = AppState.currentSession?.id;
+            if (sessionId) {
+                window.open(`http://127.0.0.1:4091/?session=${sessionId}`, '_blank');
+            }
+            toggleMenu(); // 关闭菜单
+        }
+
+        // 点击菜单按钮切换菜单
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuBtn = document.getElementById('menuBtn');
+            if (menuBtn) {
+                menuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleMenu();
+                });
+            }
+            
+            // 点击其他地方关闭菜单
+            document.addEventListener('click', () => {
+                const dropdown = document.getElementById('menuDropdown');
+                if (dropdown && dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        });
+
+        // =====================================================
+        // 初始化
+        // =====================================================
+        
+        // 切换侧边栏
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            sidebar.classList.toggle('collapsed');
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            toggleBtn.innerHTML = isCollapsed ? '<i class="fas fa-bars"></i>' : '<i class="fas fa-times"></i>';
+        }
+        
+        async function initApp() {
+            // 加载配置
+            await Promise.all([loadModels(), loadAgents()]);
+            
+            // 加载用户目录设置
+            try {
+                const result = await apiPost('/api/directory/get', { user_id: AppState.userQQ });
+                if (result.success && result.directory) {
+                    document.getElementById('workPath').value = result.directory;
+                }
+            } catch (e) {
+                console.log('获取用户目录失败，使用默认值');
+            }
+            
+            // 加载会话列表
+            await loadSessions();
+            
+            // 恢复之前选中的会话
+            const savedSessionId = localStorage.getItem('currentSessionId');
+            if (savedSessionId && AppState.sessions.find(s => (s.session_id || s.id) === savedSessionId)) {
+                await selectSession(savedSessionId);
+            }
+            
+            // 连接 SSE
+            connectSSE();
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 初始化 UI 交互
+            initCustomSelects();
+            initTextarea();
+            initSendButton();
+            
+            // 监听消息流滚动，检测用户是否在底部
+            const messageContent = document.getElementById('messageContent');
+            messageContent.addEventListener('scroll', () => {
+                const threshold = 100; // 距离底部100px内视为"在底部"
+                const isAtBottom = messageContent.scrollHeight - messageContent.scrollTop - messageContent.clientHeight < threshold;
+                AppState.userAtBottom = isAtBottom;
+            });
+            
+            // 点击页面关闭下拉框
+            document.addEventListener('click', closeAllSelects);
+            
+            // 侧边栏切换按钮
+            document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+            
+            // 检查登录状态
+            const savedQQ = localStorage.getItem('userQQ');
+            if (!savedQQ) {
+                document.getElementById('loginModal').style.display = 'flex';
+                return;
+            }
+            
+            AppState.userQQ = savedQQ;
+            AppState.userName = savedQQ; // 默认使用QQ号作为用户名称
+            updateUserName(savedQQ);
+            
+            // 初始化应用
+            await initApp();
+        });
+    </script>
+</body>
+</html>

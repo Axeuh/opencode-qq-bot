@@ -1,0 +1,38 @@
+{
+  "time": 1773057790,
+  "self_id": 3938121220,
+  "post_type": "notice",
+  "notice_type": "notify",
+  "sub_type": "poke",
+  "target_id": 3938121220,
+  "user_id": 2176284372,
+  "raw_info": [
+    {
+      "col": "1",
+      "nm": "",
+      "type": "qq",
+      "uid": "u_WtaI-LsbZALB5UCJnkEthQ"
+    },
+    {
+      "jp": "https://zb.vip.qq.com/v2/pages/nudgeMall?_wv=2",
+      "src": "http://tianquan.gtimg.cn/nudgeaction/item/0/expression.jpg",
+      "type": "img"
+    },
+    {
+      "txt": "戳了戳",
+      "type": "nor"
+    },
+    {
+      "col": "1",
+      "nm": "",
+      "tp": "0",
+      "type": "qq",
+      "uid": "u_wOjAeMHQ13LXiXlfCJEocg"
+    },
+    {
+      "txt": "",
+      "type": "nor"
+    }
+  ],
+  "sender_id": 2176284372
+}
