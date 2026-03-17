@@ -849,12 +849,6 @@ class HTTPServer:
     async def handle_session_list(self, request: web.Request) -> web.Response:
         """获取用户会话列表 (POST)"""
         try:
-            if not self.get_user_sessions_callback:
-                return web.json_response({
-                    "success": False,
-                    "error": "Get user sessions callback not configured"
-                }, status=500)
-
             # 从请求体获取用户QQ号
             try:
                 body = await request.json()
@@ -879,15 +873,27 @@ class HTTPServer:
                     "error": "Invalid user_id, must be an integer"
                 }, status=400)
 
-            # 获取用户会话列表
+            # 统一使用用户会话列表回调
+            if not self.get_user_sessions_callback:
+                return web.json_response({
+                    "success": False,
+                    "error": "Get user sessions callback not configured"
+                }, status=500)
+
             result = await self.get_user_sessions_callback(user_id)
+            
+            # 转换格式
+            session_list = []
+            if result.get("current"):
+                session_list.append(result["current"])
+            for s in result.get("history", []):
+                session_list.append(s)
 
             return web.json_response({
                 "success": True,
                 "user_id": user_id,
-                "current": result.get("current"),
-                "history": result.get("history", []),
-                "count": result.get("count", 0)
+                "sessions": session_list,
+                "count": len(session_list)
             })
 
         except Exception as e:

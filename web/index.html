@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>OpenCode Web Console</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -38,6 +38,7 @@
             display: flex;
             color: var(--text-main);
             overflow: hidden;
+            touch-action: manipulation;
         }
 
         /* 滚动条美化 */
@@ -56,13 +57,14 @@
             flex-shrink: 0;
             box-shadow: 2px 0 10px rgba(0,0,0,0.02);
             z-index: 10;
-            transition: width 0.3s ease, margin-left 0.3s ease;
+            will-change: transform;
+            transform: translateX(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .sidebar.collapsed {
-            width: 0;
+            transform: translateX(-280px);
             flex-basis: 0;
             flex-shrink: 1;
-            margin-left: 0;
             border-right: none;
             overflow: hidden;
         }
@@ -599,9 +601,249 @@
             30% { transform: translateY(-6px); }
         }
 
+        /* === 移动端响应式布局 === */
+        
+        /* 平板及移动端适配 */
+        @media (max-width: 768px) {
+            /* 防止页面横向滚动 */
+            html, body {
+                overflow-x: hidden;
+                width: 100%;
+            }
+            
+            /* 主内容区域占满整个宽度 */
+            .main-area {
+                width: 100%;
+                flex: none;
+            }
+            
+            /* 消息流区域防止溢出 */
+            .message-content {
+                overflow-x: hidden;
+            }
+            
+            /* 消息文本换行 */
+            .ai-text, .msg-user-bubble, .thought-block {
+                word-break: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            /* 工具卡片防止溢出 */
+            .tool-card {
+                max-width: 100%;
+                overflow-x: auto;
+            }
+            .tool-output {
+                max-width: 100%;
+                overflow-x: auto;
+            }
+            
+            /* 代码块防止溢出 */
+            pre, code {
+                max-width: 100%;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+            }
+            
+            /* 侧边栏改为抽屉式 */
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                z-index: 100;
+                box-shadow: none;
+                will-change: transform;
+                transform: translateX(-280px);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+                box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            }
+            .sidebar.collapsed {
+                transform: translateX(-280px);
+            }
+            
+            /* 侧边栏展开时添加遮罩 */
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.3);
+                z-index: 99;
+            }
+            .sidebar-overlay.show {
+                display: block;
+            }
+            
+            /* 消息流区域 - 减少边距，占满屏幕 */
+            .message-header {
+                padding: 12px 12px;
+            }
+            .message-content {
+                padding: 8px 8px;
+            }
+            
+            /* 输入区域 */
+            .input-area {
+                padding: 10px 12px;
+            }
+            
+            /* 模态框 */
+            .modal-content {
+                width: 95%;
+                max-width: 400px;
+                margin: 0 auto;
+            }
+            
+            /* 头像缩小 */
+            .user-avatar {
+                width: 36px;
+                height: 36px;
+            }
+            .ai-avatar {
+                width: 32px;
+                height: 32px;
+            }
+            
+            /* 用户消息气泡 - 占满屏幕 */
+            .msg-user-wrap {
+                max-width: 92%;
+            }
+            .msg-user-bubble {
+                padding: 10px 14px;
+                font-size: 15px;
+            }
+            
+            /* AI消息文本 - 增大字体 */
+            .ai-text {
+                padding: 12px 14px;
+                font-size: 15px;
+                line-height: 1.6;
+            }
+            
+            /* 思考内容 */
+            .thought-block {
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            
+            /* 下拉框宽度 */
+            #modelSelect {
+                max-width: 140px;
+            }
+            #agentSelect {
+                width: 120px;
+            }
+            
+            /* 标题栏字体 */
+            .message-header-title {
+                font-size: 15px;
+            }
+            
+            /* 工作目录 */
+            .work-path-box {
+                height: 32px;
+                font-size: 13px;
+            }
+            
+            /* 发送按钮 */
+            .send-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            /* 输入框 */
+            .msg-input {
+                min-height: 40px;
+                font-size: 15px;
+            }
+            
+            /* 会话标题 */
+            .session-title {
+                max-width: 200px;
+            }
+            
+            /* 侧边栏切换按钮位置调整 */
+            .sidebar-toggle {
+                margin-left: 0;
+            }
+            
+            /* 工具卡片 */
+            .tool-card {
+                font-size: 13px;
+            }
+            
+            /* 基础字体 */
+            body {
+                font-size: 15px;
+            }
+        }
+
+        /* 小屏手机适配 */
+        @media (max-width: 480px) {
+            /* 头像进一步缩小 */
+            .user-avatar, .ai-avatar {
+                width: 32px;
+                height: 32px;
+            }
+            
+            /* 消息气泡 - 更大字体 */
+            .msg-user-bubble, .ai-text {
+                padding: 10px 12px;
+                font-size: 15px;
+                line-height: 1.5;
+            }
+            
+            /* 思考内容 */
+            .thought-block {
+                font-size: 14px;
+            }
+            
+            /* 下拉框宽度 */
+            #modelSelect {
+                max-width: 100px;
+            }
+            #agentSelect {
+                width: 90px;
+            }
+            
+            /* 工作目录输入框隐藏或简化 */
+            .work-path-box {
+                font-size: 12px;
+            }
+            
+            /* 会话预览隐藏 */
+            .session-preview {
+                display: none;
+            }
+            
+            /* 会话标题宽度 */
+            .session-title {
+                max-width: 140px;
+            }
+            
+            /* 用户消息气泡更大 */
+            .msg-user-wrap {
+                max-width: 95%;
+            }
+            
+            /* 基础字体 */
+            body {
+                font-size: 15px;
+            }
+        }
+
     </style>
 </head>
 <body>
+
+    <div class="sidebar-overlay"></div>
 
     <div class="sidebar">
         <div class="user-header">
@@ -755,7 +997,10 @@
             parts: {},              // 按会话ID分组: {sessionID: {partID: {id, messageID, type, text, tool, state, order}}}
             currentMessageID: null, // 当前正在构建的消息ID
             sessionStatus: {},      // 会话状态: {sessionID: 'idle'|'thinking'|'responding'}
-            userAtBottom: true      // 用户是否在消息流底部
+            userAtBottom: true,     // 用户是否在消息流底部
+            // 渲染优化
+            renderPending: false,   // 是否有待渲染
+            lastRenderTime: 0       // 上次渲染时间戳
         };
 
         // =====================================================
@@ -896,22 +1141,24 @@
         // =====================================================
         async function loadSessions() {
             try {
-                // 直接使用OpenCode会话列表API
-                const sessions = await apiGet('/api/opencode/sessions');
+                const userQQ = AppState.userQQ;
                 
-                if (!sessions || !Array.isArray(sessions)) {
-                    console.error('获取会话列表失败: 返回格式不正确');
-                    AppState.sessions = [];
-                } else {
-                    // 转换会话格式
-                    AppState.sessions = sessions.map(s => ({
-                        id: s.id,
-                        session_id: s.id,
+                // 统一使用用户会话列表API
+                const result = await apiPost('/api/session/list', { user_id: userQQ });
+                
+                if (result && Array.isArray(result.sessions)) {
+                    AppState.sessions = result.sessions.map(s => ({
+                        id: s.session_id || s.id,
+                        session_id: s.session_id || s.id,
                         title: s.title || '未命名会话',
-                        created_at: s.time?.created ? s.time.created / 1000 : Date.now() / 1000,
-                        last_accessed: s.time?.updated ? s.time.updated / 1000 : Date.now() / 1000,
+                        created_at: s.created_at || Date.now() / 1000,
+                        last_accessed: s.last_accessed || s.updated_at || Date.now() / 1000,
                         directory: s.directory
                     }));
+                }
+                
+                if (!AppState.sessions) {
+                    AppState.sessions = [];
                 }
                 
                 // 为每个会话获取最后一条消息预览
@@ -1021,7 +1268,7 @@
 
         async function createSession() {
             try {
-                // 使用用户会话API创建新会话
+                // 统一使用私有会话API
                 const result = await apiPost('/api/session/new', { user_id: AppState.userQQ });
                 if (result.success && result.session) {
                     const session = result.session;
@@ -1042,29 +1289,29 @@
             if (!confirm('确定要删除这个会话吗？')) return;
             
             try {
-                // 使用用户会话API删除会话
+                // 统一使用私有会话API
                 const result = await apiPost('/api/session/delete', { user_id: AppState.userQQ, session_id: sessionId });
                 if (result.success) {
                     AppState.sessions = AppState.sessions.filter(s => (s.session_id || s.id) !== sessionId);
-                    
-                    if (AppState.currentSession?.id === sessionId) {
-                        AppState.currentSession = null;
-                        document.getElementById('messageHeader').style.display = 'none';
-                        document.getElementById('messageContent').innerHTML = `
-                            <div class="empty-state" id="emptyState">
-                                <i class="fas fa-comments"></i>
-                                <p>选择一个会话开始聊天</p>
-                                <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
-                            </div>
-                        `;
-                        document.getElementById('chatInput').disabled = true;
-                        document.getElementById('sendBtn').disabled = true;
-                    }
-                    
-                    renderSessions();
                 } else {
                     throw new Error(result.error || '删除会话失败');
                 }
+                
+                if (AppState.currentSession?.id === sessionId) {
+                    AppState.currentSession = null;
+                    document.getElementById('messageHeader').style.display = 'none';
+                    document.getElementById('messageContent').innerHTML = `
+                        <div class="empty-state" id="emptyState">
+                            <i class="fas fa-comments"></i>
+                            <p>选择一个会话开始聊天</p>
+                            <p style="font-size: 12px; margin-top: 8px;">或点击「新建会话」开始新对话</p>
+                        </div>
+                    `;
+                    document.getElementById('chatInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                }
+                
+                renderSessions();
             } catch (error) {
                 console.error('删除会话失败:', error);
                 alert('删除会话失败: ' + error.message);
@@ -1163,6 +1410,56 @@
             } catch (error) {
                 console.error('加载消息失败:', error);
             }
+        }
+
+        // 渲染节流 - 避免频繁重渲染
+        const RENDER_THROTTLE = 50; // 50ms节流
+        function scheduleRender() {
+            const now = Date.now();
+            const timeSinceLastRender = now - AppState.lastRenderTime;
+            
+            if (timeSinceLastRender >= RENDER_THROTTLE) {
+                // 超过节流时间，直接渲染
+                AppState.lastRenderTime = now;
+                renderMessages();
+            } else if (!AppState.renderPending) {
+                // 在节流时间内，等待下一帧
+                AppState.renderPending = true;
+                requestAnimationFrame(() => {
+                    AppState.renderPending = false;
+                    AppState.lastRenderTime = Date.now();
+                    renderMessages();
+                });
+            }
+        }
+
+        // 增量更新流式文本 - 只更新变化的part
+        function updateStreamingText(sessionId, partID, text) {
+            // 查找对应的DOM元素
+            const container = document.getElementById('messageContent');
+            const partEl = container.querySelector(`[data-part-id="${partID}"]`);
+            
+            if (partEl) {
+                // 对于text类型，直接更新文本
+                if (partEl.classList.contains('ai-text')) {
+                    partEl.innerHTML = formatMarkdown(text);
+                    // 滚动到底部
+                    if (AppState.userAtBottom) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    return true;
+                }
+                // 对于thought类型，更新内部文本
+                const thoughtText = partEl.querySelector('.thought-text');
+                if (thoughtText) {
+                    thoughtText.textContent = text;
+                    if (AppState.userAtBottom) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    return true;
+                }
+            }
+            return false; // 需要全量渲染
         }
 
         function renderMessages() {
@@ -1408,6 +1705,7 @@
                 case 'text':
                     const textEl = document.createElement('div');
                     textEl.className = 'ai-text';
+                    if (part.id) textEl.dataset.partId = part.id;
                     textEl.innerHTML = formatMarkdown(part.text);
                     return textEl;
                     
@@ -1415,7 +1713,12 @@
                 case 'thought':
                     const thoughtEl = document.createElement('div');
                     thoughtEl.className = 'thought-block';
-                    thoughtEl.textContent = part.text || part.content || '';
+                    if (part.id) thoughtEl.dataset.partId = part.id;
+                    // 添加内部文本元素便于增量更新
+                    const thoughtText = document.createElement('div');
+                    thoughtText.className = 'thought-text';
+                    thoughtText.textContent = part.text || part.content || '';
+                    thoughtEl.appendChild(thoughtText);
                     return thoughtEl;
                     
                 case 'tool':
@@ -1860,7 +2163,7 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                     type: 'text',
                     text: `发送失败: ${error.message}`
                 };
-                renderMessages();
+                scheduleRender();
             }
         }
 
@@ -1962,12 +2265,17 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                         }
                         
                         // 追加文本
-                        AppState.parts[deltaSessionId][partID].text = 
-                            (AppState.parts[deltaSessionId][partID].text || '') + delta;
+                        const newText = (AppState.parts[deltaSessionId][partID].text || '') + delta;
+                        AppState.parts[deltaSessionId][partID].text = newText;
                         
-                        // 如果是当前会话，重新渲染
+                        // 如果是当前会话，尝试增量更新
                         if (AppState.currentSession?.id === deltaSessionId) {
-                            renderMessages();
+                            // 优先尝试增量更新DOM
+                            const updated = updateStreamingText(deltaSessionId, partID, newText);
+                            if (!updated) {
+                                // 增量更新失败（元素不存在），使用节流渲染
+                                scheduleRender();
+                            }
                         }
                     }
                     break;
@@ -2013,9 +2321,9 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                             messageID: partMessageID || AppState.parts[partSessionId][partId]?.messageID  // 优先使用新的messageID
                         };
                         
-                        // 如果是当前会话，重新渲染
+                        // 如果是当前会话，节流渲染
                         if (AppState.currentSession?.id === partSessionId) {
-                            renderMessages();
+                            scheduleRender();
                         }
                     }
                     break;
@@ -2123,7 +2431,7 @@ case 'message.updated':
                         
                         // 如果是当前会话，重新渲染（会自动更新会话列表预览）
                         if (AppState.currentSession?.id === msgSessionId) {
-                            renderMessages();
+                            scheduleRender();
                         }
                         
                         // AI消息更新完成时，重置流式状态和发送按钮
@@ -2490,10 +2798,23 @@ case 'message.updated':
         // 切换侧边栏
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
             const toggleBtn = document.getElementById('sidebarToggle');
-            sidebar.classList.toggle('collapsed');
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            toggleBtn.innerHTML = isCollapsed ? '<i class="fas fa-bars"></i>' : '<i class="fas fa-times"></i>';
+            
+            if (window.innerWidth <= 768) {
+                // 移动端：切换 show 类
+                sidebar.classList.toggle('show');
+                if (overlay) {
+                    overlay.classList.toggle('show');
+                }
+                const isShow = sidebar.classList.contains('show');
+                toggleBtn.innerHTML = isShow ? '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
+            } else {
+                // 桌面端：切换 collapsed 类
+                sidebar.classList.toggle('collapsed');
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                toggleBtn.innerHTML = isCollapsed ? '<i class="fas fa-bars"></i>' : '<i class="fas fa-times"></i>';
+            }
         }
         
         async function initApp() {
@@ -2542,6 +2863,12 @@ case 'message.updated':
             
             // 侧边栏切换按钮
             document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+            
+            // 遮罩层点击关闭侧边栏（移动端）
+            const overlay = document.querySelector('.sidebar-overlay');
+            if (overlay) {
+                overlay.addEventListener('click', toggleSidebar);
+            }
             
             // 检查登录状态
             const savedQQ = localStorage.getItem('userQQ');
