@@ -1097,7 +1097,7 @@
                     <button class="sidebar-toggle" id="sidebarToggle" title="切换侧边栏">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div class="message-header-title" id="messageTitle">请选择会话</div>
+                    <div class="message-header-title" id="messageTitle" style="cursor: pointer;" title="点击编辑标题">请选择会话</div>
                     <span class="session-path-header" id="sessionPathHeader" style="display: none; margin-left: 12px; font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; min-width: 50px; flex: 0 1 auto; cursor: pointer;" title="点击编辑路径"></span>
                 </div>
                 <div class="message-header-right" style="display: flex; align-items: center; gap: 12px;">
@@ -3889,6 +3889,114 @@ case 'message.updated':
 
         // 绑定点击事件
         document.getElementById('sessionPathHeader').onclick = editSessionPathInHeader;
+        
+        // ==================== 标题编辑功能 ====================
+        
+        async function editSessionTitle() {
+            const titleElement = document.getElementById('messageTitle');
+            if (!titleElement || !AppState.currentSession) return;
+            
+            const currentTitle = AppState.currentSession.title || '';
+            const originalText = titleElement.textContent;
+            let restored = false;
+            
+            // 恢复 div 的函数
+            const restoreDiv = (text) => {
+                if (restored) return;
+                restored = true;
+                
+                const div = document.createElement('div');
+                div.id = 'messageTitle';
+                div.className = 'message-header-title';
+                div.style.cssText = 'cursor: pointer;';
+                div.title = '点击编辑标题';
+                div.textContent = text;
+                div.onclick = editSessionTitle;
+                
+                input.replaceWith(div);
+            };
+            
+            // 创建输入框
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentTitle;
+            input.style.cssText = `
+                font-size: 16px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border: 1px solid var(--primary-blue);
+                border-radius: 4px;
+                background: white;
+                min-width: 200px;
+                max-width: 400px;
+            `;
+            
+            // 替换 div 为 input
+            titleElement.replaceWith(input);
+            input.focus();
+            input.select();
+            
+            // 键盘事件
+            input.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newTitle = input.value.trim();
+                    const sessionId = AppState.currentSession.id;
+                    
+                    if (!newTitle) {
+                        restoreDiv(originalText);
+                        return;
+                    }
+                    
+                    try {
+                        // 1. 保存到bot
+                        const botResult = await apiPost('/api/session/title', {
+                            user_id: AppState.userQQ,
+                            session_id: sessionId,
+                            title: newTitle
+                        });
+                        
+                        // 2. 同步到OpenCode
+                        try {
+                            await fetch(`${OPENCODE_BASE_URL}/session/${sessionId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ title: newTitle })
+                            });
+                        } catch (ocError) {
+                            console.warn('同步到OpenCode失败:', ocError);
+                        }
+                        
+                        if (botResult.success && AppState.currentSession) {
+                            AppState.currentSession.title = newTitle;
+                            // 更新会话列表中的标题
+                            const session = AppState.sessions.find(s => (s.session_id || s.id) === sessionId);
+                            if (session) session.title = newTitle;
+                            renderSessions();
+                        }
+                        restoreDiv(newTitle);
+                    } catch (error) {
+                        console.error('保存标题失败:', error);
+                        restoreDiv(originalText);
+                    }
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    restoreDiv(originalText);
+                }
+            });
+            
+            // 失焦事件
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (!restored) {
+                        restoreDiv(originalText);
+                    }
+                }, 100);
+            });
+        }
+        
+        // 绑定标题点击事件
+        document.getElementById('messageTitle').onclick = editSessionTitle;
     </script>
 </body>
 </html>
