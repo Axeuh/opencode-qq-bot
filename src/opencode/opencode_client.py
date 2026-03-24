@@ -74,10 +74,10 @@ class OpenCodeClient(_BaseClient):
             ntfy_topic=ntfy_topic
         )
         
-        # 组合 API 模块
-        self.session = SessionAPI(self)
-        self.message = MessageAPI(self)
-        self.model = ModelAPI(self)
+        # 组合 API 模块（使用下划线前缀避免与基类的 aiohttp session 冲突）
+        self._session_api = SessionAPI(self)
+        self._message_api = MessageAPI(self)
+        self._model_api = ModelAPI(self)
     
     # ==================== 会话管理 API（向后兼容代理）====================
     
@@ -87,31 +87,31 @@ class OpenCodeClient(_BaseClient):
         directory: Optional[str] = None
     ) -> SessionResult:
         """创建新会话"""
-        return await self.session.create_session(title, directory)
+        return await self._session_api.create_session(title, directory)
     
     async def abort_session(self, session_id: str, directory: Optional[str] = None) -> BoolResult:
         """中止会话"""
-        return await self.session.abort_session(session_id, directory)
+        return await self._session_api.abort_session(session_id, directory)
     
     async def revert_last_message(self, session_id: str, directory: Optional[str] = None) -> BoolResult:
         """撤销最后一条消息"""
-        return await self.session.revert_last_message(session_id, directory)
+        return await self._session_api.revert_last_message(session_id, directory)
     
     async def unrevert_messages(self, session_id: str, directory: Optional[str] = None) -> BoolResult:
         """恢复所有撤销的消息"""
-        return await self.session.unrevert_messages(session_id, directory)
+        return await self._session_api.unrevert_messages(session_id, directory)
     
     async def list_sessions(self, limit: int = 50) -> ListResult:
         """列出所有会话"""
-        return await self.session.list_sessions(limit)
+        return await self._session_api.list_sessions(limit)
     
     async def get_session(self, session_id: str) -> Tuple[Optional[Dict], Optional[str]]:
         """获取会话详情"""
-        return await self.session.get_session(session_id)
+        return await self._session_api.get_session(session_id)
     
     async def delete_session(self, session_id: str) -> BoolResult:
         """删除会话"""
-        return await self.session.delete_session(session_id)
+        return await self._session_api.delete_session(session_id)
     
     async def summarize_session(
         self,
@@ -121,11 +121,11 @@ class OpenCodeClient(_BaseClient):
         directory: Optional[str] = None
     ) -> BoolResult:
         """压缩/总结当前会话上下文"""
-        return await self.session.summarize_session(session_id, provider_id, model_id, directory)
+        return await self._session_api.summarize_session(session_id, provider_id, model_id, directory)
     
     async def list_messages(self, session_id: str, limit: Optional[int] = None, directory: Optional[str] = None) -> ListResult:
         """列出会话中的消息"""
-        return await self.session.list_messages(session_id, limit, directory)
+        return await self._session_api.list_messages(session_id, limit, directory)
     
     # ==================== 消息 API（向后兼容代理）====================
     
@@ -140,7 +140,7 @@ class OpenCodeClient(_BaseClient):
         create_if_not_exists: bool = True
     ) -> RequestResult:
         """发送消息到 OpenCode 会话"""
-        return await self.message.send_message(
+        return await self._message_api.send_message(
             message_text=message_text,
             session_id=session_id,
             agent=agent,
@@ -162,7 +162,7 @@ class OpenCodeClient(_BaseClient):
         directory: Optional[str] = None
     ) -> RequestResult:
         """在指定会话中执行斜杠命令"""
-        return await self.message.execute_command(
+        return await self._message_api.execute_command(
             session_id=session_id,
             command=command,
             message_id=message_id,
@@ -177,15 +177,15 @@ class OpenCodeClient(_BaseClient):
     
     async def get_models(self) -> ListResult:
         """获取可用模型列表"""
-        return await self.model.get_models()
+        return await self._model_api.get_models()
     
     async def get_agents(self) -> ListResult:
         """获取可用智能体列表"""
-        return await self.model.get_agents()
+        return await self._model_api.get_agents()
     
     async def list_commands(self) -> ListResult:
         """获取可用的斜杠命令列表"""
-        return await self.model.list_commands()
+        return await self._model_api.list_commands()
 
 
 # ==================== 同步接口包装器（向后兼容）====================
