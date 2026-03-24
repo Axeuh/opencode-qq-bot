@@ -560,12 +560,18 @@ class HTTPCallbackHandler:
             return {"success": False, "error": "Session manager not available"}
         
         # 获取目标会话
+        target_session_id = None
         if session_id:
-            target_session = self.session_manager.get_session_by_id(user_id, session_id)
+            # get_session_by_id 返回字典，不是 UserSession 对象
+            session_info = self.session_manager.get_session_by_id(user_id, session_id)
+            if session_info:
+                target_session_id = session_info.get("session_id")
         else:
-            target_session = self.session_manager.get_user_session(user_id)
+            current_session = self.session_manager.get_user_session(user_id)
+            if current_session:
+                target_session_id = current_session.session_id
         
-        if not target_session:
+        if not target_session_id:
             return {"success": False, "error": "No active session"}
         
         # 验证目录格式
@@ -578,7 +584,7 @@ class HTTPCallbackHandler:
         if directory == "":
             success = self.session_manager.set_session_path(
                 user_id=user_id,
-                session_id=target_session.session_id,
+                session_id=target_session_id,
                 reset_to_default=True
             )
             # 获取重置后的路径
@@ -598,12 +604,12 @@ class HTTPCallbackHandler:
             # 使用会话管理器设置路径
             success = self.session_manager.set_session_path(
                 user_id=user_id,
-                session_id=target_session.session_id,
+                session_id=target_session_id,
                 path=directory
             )
         
         if success:
-            logger.info(f"用户 {user_id} 会话 {target_session.session_id} 路径已更新为: {directory}")
+            logger.info(f"用户 {user_id} 会话 {target_session_id} 路径已更新为: {directory}")
             return {
                 "success": True,
                 "directory": directory

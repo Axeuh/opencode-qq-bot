@@ -1880,7 +1880,7 @@
                 const allMessages = await apiGet(`/api/opencode/sessions/${sessionId}/messages?limit=20`);
                 
                 const messages = allMessages || [];
-                console.log(`[消息] 加载 ${messages.length} 条消息`);
+                // console.log(`[消息] 加载 ${messages.length} 条消息`);
                 
                 // 保存临时用户消息（如果有）
                 const existingMessages = AppState.messages[sessionId] || [];
@@ -1924,7 +1924,7 @@
                     if (!partsByMsg[key]) partsByMsg[key] = [];
                     partsByMsg[key].push(p.type);
                 });
-                console.log('[消息] parts分组:', partsByMsg);
+                // console.log('[消息] parts分组:', partsByMsg);
                 
                 renderMessages();
             } catch (error) {
@@ -2060,11 +2060,9 @@
             
             // 检查是否需要显示"思考中..."
             // 条件：正在流式接收 且 (最后一条是用户消息 或 最后一条AI消息没有实际内容)
-            console.log('[思考中检查] isStreaming:', AppState.isStreaming, 'messages:', messages.length);
             if (AppState.isStreaming && messages.length > 0) {
                 const lastMsg = messages[messages.length - 1];
                 const lastMsgRole = lastMsg.role || lastMsg.info?.role;
-                console.log('[思考中检查] lastMsgRole:', lastMsgRole);
                 
                 let showThinking = false;
                 if (lastMsgRole === 'user') {
@@ -2079,7 +2077,6 @@
                     }
                 }
                 
-                console.log('[思考中检查] showThinking:', showThinking);
                 if (showThinking) {
                     const thinkingEl = document.createElement('div');
                     thinkingEl.className = 'msg-ai-wrap thinking-placeholder';
@@ -2132,20 +2129,15 @@
             let content = '';
             const sessionId = AppState.currentSession?.id;
             
-            // 调试：检查msg.parts和AppState.parts
-            console.log('[renderUser] msg.id:', msg.id?.substring(0,20), 'msg.parts:', msg.parts?.length, 'hasInfoParts:', !!msg.info?.parts);
-            
             // 优先从AppState.parts获取，避免重复
             if (sessionId && AppState.parts[sessionId]) {
                 const msgParts = Object.values(AppState.parts[sessionId])
                     .filter(p => p.messageID === msg.id);
                 content = msgParts.map(p => p.text || '').join('');
-                console.log('[renderUser] 从AppState.parts获取, parts数量:', msgParts.length);
             }
             // 只有当AppState.parts中没有内容时，才从msg.parts获取
             if (!content && msg.parts && Array.isArray(msg.parts)) {
                 content = msg.parts.map(p => p.text || '').join('');
-                console.log('[renderUser] 从msg.parts获取');
             }
             if (!content) content = msg.content || '';
             
@@ -2158,10 +2150,6 @@
             
             // 删除 <ultrawork-mode> 标签及其内容
             content = content.replace(/<ultrawork-mode>[\s\S]*?<\/ultrawork-mode>/gi, '');
-            
-            if (originalContent !== content) {
-                console.log('[renderUser] 删除前缀/标签成功, 原长度:', originalContent.length, '新长度:', content.length);
-            }
             
             // 从state获取元数据
             const modelInfo = msg.modelID || AppState.selectedModel || '';
@@ -2188,13 +2176,9 @@
             
             const contentEl = wrap.querySelector('.ai-content');
             
-            // 调试日志
-            console.log(`[renderAI] msg=${msg.id?.substring(0,15)} parts=${parts.length} types=${parts.map(p=>p.type).join(',')}`);
-            
             // 如果没有传入parts，尝试从msg或state获取
             if (parts.length === 0 && msg.parts && Array.isArray(msg.parts)) {
                 parts = msg.parts;
-                console.log(`[renderAI] 从msg.parts获取: ${parts.length}`);
             }
             
             // 不排序，直接按照事件接收顺序渲染（现代JS引擎会按插入顺序遍历对象属性）
@@ -2213,7 +2197,6 @@
                 contentEl.appendChild(textEl);
             } else {
                 // 没有实际内容，返回null让renderMessages显示"思考中"提示
-                console.log(`[renderAI] 无内容，跳过: msg=${msg.id?.substring(0,15)}`);
                 return null;
             }
             
@@ -2803,15 +2786,15 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
             // 注意：不同事件类型的sessionID位置不同
             let sessionId = props.sessionID || props.part?.sessionID || rawData.session_id;
             
-            // 调试日志
-            console.log('[SSE]', type, sessionId ? `(session: ${sessionId.substring(0,20)}...)` : '(no session)');
+            // SSE事件处理 - 减少调试日志
+            // console.log('[SSE]', type, sessionId ? `(session: ${sessionId.substring(0,20)}...)` : '(no session)');
             
             // 使用当前会话ID（用于需要当前会话上下文的事件）
             const currentSessionId = AppState.currentSession?.id;
             
             switch (type) {
                 case 'server.connected':
-                    console.log('SSE 连接成功');
+                    // console.log('SSE 连接成功');
                     break;
                     
                 case 'server.heartbeat':
@@ -2826,7 +2809,8 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                     const field = props.field || 'text';
                     const deltaMessageID = props.messageID;  // 获取messageID
                     
-                    console.log('[SSE] delta:', delta?.substring(0,30), 'field:', field, 'session:', deltaSessionId?.substring(0,20));
+                    // 减少调试日志
+                    // console.log('[SSE] delta:', delta?.substring(0,30), 'field:', field, 'session:', deltaSessionId?.substring(0,20));
                     
                     if (deltaSessionId && partID && field === 'text') {
                         // 初始化parts
@@ -2888,7 +2872,8 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                     const partId = part.id;
                     const partMessageID = part.messageID || props.messageID;  // messageID可能在part或props中
                     
-                    console.log('[SSE] part updated:', part.type, part.tool || '', 'session:', partSessionId?.substring(0,20), 'messageID:', partMessageID?.substring(0,15));
+                    // 减少调试日志
+                    // console.log('[SSE] part updated:', part.type, part.tool || '', 'session:', partSessionId?.substring(0,20), 'messageID:', partMessageID?.substring(0,15));
                     
                     if (partSessionId && partId) {
                         // 初始化parts
@@ -2936,7 +2921,8 @@ case 'message.updated':
                     const msgId = info.id;
                     const msgRole = info.role;
                     
-                    console.log('[SSE] message.updated:', msgRole, 'id:', msgId?.substring(0,15), 'session:', msgSessionId?.substring(0,20), 'tokens:', info.tokens);
+                    // 减少调试日志
+                    // console.log('[SSE] message.updated:', msgRole, 'id:', msgId?.substring(0,15), 'session:', msgSessionId?.substring(0,20), 'tokens:', info.tokens);
                     
                     if (msgSessionId && msgId) {
                         // 初始化messages
@@ -2967,7 +2953,7 @@ case 'message.updated':
                                     Object.keys(AppState.parts[msgSessionId]).forEach(partId => {
                                         if (partId.startsWith(tempPartPrefix) || AppState.parts[msgSessionId][partId].messageID === oldId) {
                                             delete AppState.parts[msgSessionId][partId];
-                                            console.log('[SSE] 删除临时用户part:', partId);
+                                            // console.log('[SSE] 删除临时用户part:', partId);
                                         }
                                     });
                                 }
@@ -2983,7 +2969,7 @@ case 'message.updated':
                                         Object.keys(AppState.parts[msgSessionId]).forEach(partId => {
                                             if (AppState.parts[msgSessionId][partId].messageID === oldId) {
                                                 delete AppState.parts[msgSessionId][partId];
-                                                console.log('[SSE] 删除临时AI part:', partId);
+                                                // console.log('[SSE] 删除临时AI part:', partId);
                                             }
                                         });
                                     } else {
@@ -2995,7 +2981,7 @@ case 'message.updated':
                                         });
                                     }
                                 }
-                                console.log('[SSE] 替换临时消息:', msgRole, 'oldId:', oldId, 'newId:', msgId);
+                                // console.log('[SSE] 替换临时消息:', msgRole, 'oldId:', oldId, 'newId:', msgId);
                             } else {
                                 // 新增消息
                                 AppState.messages[msgSessionId].push(info);
@@ -3017,9 +3003,7 @@ case 'message.updated':
                             // 更新tokens（从info.tokens获取）
                             if (info.tokens) {
                                 session.tokens = info.tokens;
-                                console.log('[SSE] 更新tokens:', info.tokens);
-                            } else {
-                                console.log('[SSE] 没有tokens信息, info:', JSON.stringify(info).substring(0, 200));
+                                // console.log('[SSE] 更新tokens:', info.tokens);
                             }
                             // 更新会话时间
                             session.updated_at = info.time?.updated || info.time?.created || Date.now();
@@ -3106,7 +3090,7 @@ case 'message.updated':
                     break;
                     
                 default:
-                    console.log('未处理的 SSE 事件:', type, rawData);
+                    // console.log('未处理的 SSE 事件:', type, rawData);
             }
         }
 
