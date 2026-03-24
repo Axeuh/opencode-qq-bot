@@ -1,7 +1,7 @@
 # 测试架构
 
-**生成时间：** 2026-03-12
-**测试文件：** 10 个 Python 测试脚本
+**生成时间：** 2026-03-24
+**测试文件：** 17 个 Python 测试脚本
 **测试模式：** 自定义脚本化测试，集成测试导向，日志驱动
 
 ## 测试架构概览
@@ -28,13 +28,17 @@
 | `test_connection.py` | **连接测试** | WebSocket 连接和基本功能 |
 | `test_session_manager_basic.py` | **会话管理器基础测试** | 会话持久化和超时清理验证 |
 
-### API 测试 (4个文件)
+### API 测试 (8个文件)
 | 文件 | 用途 | 测试内容 |
 |------|------|----------|
 | `test_http_api.py` | HTTP API 集成测试 | NapCat HTTP API 功能 |
 | `test_get_msg.py` | get_msg API 测试 | 消息获取功能 |
 | `test_get_msg_enhanced.py` | get_msg 增强测试 | 扩展的消息获取测试 |
 | `test_get_msg_validation.py` | get_msg 验证测试 | 消息验证逻辑 |
+| `test_get_msg_http.py` | get_msg HTTP 测试 | HTTP 消息获取 |
+| `test_file_download_api.py` | 文件下载 API 测试 | 文件下载功能 |
+| `test_file_handler_api.py` | 文件处理器 API 测试 | 文件处理逻辑 |
+| `test_get_forward_msg.py` | 合并转发消息测试 | 合并转发解析 |
 
 ### 代码质量测试 (1个文件)
 | 文件 | 用途 | 测试内容 |

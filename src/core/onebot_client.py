@@ -25,7 +25,7 @@ from .message_router import MessageRouter
 from .connection_lifecycle import ConnectionLifecycle
 from .event_handlers import EventHandlers
 from .api_sender import ApiSender
-from .http_server import HTTPServer
+from .http import HTTPServer
 
 # 导入新模块
 from .http_callbacks import HTTPCallbackHandler
