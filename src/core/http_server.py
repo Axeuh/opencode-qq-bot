@@ -1745,10 +1745,10 @@ class HTTPServer:
             headers["x-opencode-directory"] = user_directory
             headers["Referer"] = f"{OPENCODE_BASE_URL}/{directory_b64}/session/{session_id}"
             
-            # 打印请求日志
-            logger.info(f"[OpenCode代理] POST {OPENCODE_BASE_URL}/session/{session_id}/message")
-            logger.info(f"[OpenCode代理] Headers: {headers}")
-            logger.info(f"[OpenCode代理] Body: {body[:200] if len(body) > 200 else body}")
+            # 打印请求日志（调试用，已注释）
+            # logger.info(f"[OpenCode代理] POST {OPENCODE_BASE_URL}/session/{session_id}/message")
+            # logger.info(f"[OpenCode代理] Headers: {headers}")
+            # logger.info(f"[OpenCode代理] Body: {body[:200] if len(body) > 200 else body}")
             
             async with ClientSession() as session:
                 async with session.post(

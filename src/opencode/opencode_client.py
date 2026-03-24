@@ -194,11 +194,11 @@ class OpenCodeClient:
         if extra_headers:
             request_headers.update(extra_headers)
         
-        # 打印完整请求信息用于调试
-        logger.info(f"[OpenCode请求] {method} {url}")
-        logger.info(f"[OpenCode请求] Headers: {request_headers}")
-        if json_data:
-            logger.info(f"[OpenCode请求] Body: {json_data}")
+        # 打印完整请求信息用于调试（已注释）
+        # logger.info(f"[OpenCode请求] {method} {url}")
+        # logger.info(f"[OpenCode请求] Headers: {request_headers}")
+        # if json_data:
+        #     logger.info(f"[OpenCode请求] Body: {json_data}")
         
         try:
             # 构建请求参数，只有当 json_data 不为 None 时才传递
