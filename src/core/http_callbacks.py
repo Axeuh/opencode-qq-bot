@@ -400,7 +400,8 @@ class HTTPCallbackHandler:
                 "title": current_session.title,
                 "created_at": current_session.created_at,
                 "last_accessed": current_session.last_accessed,
-                "directory": current_session.directory or ""
+                "directory": current_session.directory or "",
+                "tokens": current_session.tokens or None
             }
         
         # 获取历史会话
@@ -412,7 +413,8 @@ class HTTPCallbackHandler:
                 "title": session.get("title", ""),
                 "created_at": session.get("created_at", 0),
                 "last_accessed": session.get("last_accessed", 0),
-                "directory": session.get("directory", "")
+                "directory": session.get("directory", ""),
+                "tokens": session.get("tokens")
             }
             # 排除当前会话
             if current_info and info["session_id"] == current_info["session_id"]:
@@ -518,6 +520,21 @@ class HTTPCallbackHandler:
                 return {"success": False, "error": "Session not found"}
         except Exception as e:
             logger.error(f"设置会话标题失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_update_session_tokens(self, user_id: int, session_id: str, tokens: Dict[str, int]) -> Dict[str, Any]:
+        """更新会话token统计的回调函数"""
+        if not self.session_manager:
+            return {"success": False, "error": "Session manager not available"}
+        
+        try:
+            result = self.session_manager.update_session_tokens(user_id, session_id, tokens)
+            if result:
+                return {"success": True}
+            else:
+                return {"success": False, "error": "Session not found"}
+        except Exception as e:
+            logger.error(f"更新会话tokens失败: {e}")
             return {"success": False, "error": str(e)}
     
     # ==================== 目录管理回调 ====================
@@ -658,6 +675,7 @@ class HTTPCallbackHandler:
             'create_session_callback': self.handle_create_session,
             'delete_session_callback': self.handle_delete_session,
             'set_session_title_callback': self.handle_set_session_title,
+            'update_session_tokens_callback': self.handle_update_session_tokens,
             # Directory 回调
             'get_directory_callback': self.handle_get_directory,
             'set_directory_callback': self.handle_set_directory

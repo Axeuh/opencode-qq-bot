@@ -1098,7 +1098,7 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <div class="message-header-title" id="messageTitle">请选择会话</div>
-                    <span class="session-path-header" id="sessionPathHeader" style="display: none; margin-left: 12px; font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; cursor: pointer;" title="点击编辑路径"></span>
+                    <span class="session-path-header" id="sessionPathHeader" style="display: none; margin-left: 12px; font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; min-width: 50px; flex: 0 1 auto; cursor: pointer;" title="点击编辑路径"></span>
                 </div>
                 <div class="message-header-right" style="display: flex; align-items: center; gap: 12px;">
                     <div class="token-info" id="tokenInfo" style="font-size: 12px; color: var(--text-sub);">
@@ -1245,13 +1245,6 @@
                 <div class="form-group">
                     <label>当前 QQ 号</label>
                     <input type="text" class="form-input" id="currentQQ" readonly>
-                </div>
-                <div class="form-group">
-                    <label>工作目录</label>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-folder-open" style="color: var(--primary);"></i>
-                        <input type="text" class="form-input" id="workPath" value="C:\" title="当前工作目录" style="flex: 1;">
-                    </div>
                 </div>
                 <button class="btn btn-save" style="width:100%;margin-top:8px;" onclick="document.getElementById('settingsModal').style.display='none';document.getElementById('changePasswordModal').style.display='flex';">
                     <i class="fas fa-key" style="margin-right:8px;"></i>修改密码
@@ -1653,7 +1646,8 @@
                         title: s.title || '未命名会话',
                         created_at: s.created_at || Date.now() / 1000,
                         last_accessed: s.last_accessed || s.updated_at || Date.now() / 1000,
-                        directory: s.directory
+                        directory: s.directory,
+                        tokens: s.tokens || null
                     }));
                 }
                 
@@ -2014,9 +2008,11 @@
             if (subEl) subEl.textContent = `${msgCount} 条消息`;
             
             // 显示token数量（从session.tokens获取，由message.updated事件更新）
-            const tokens = session?.tokens || {total: 0, input: 0, output: 0};
+            const tokens = session?.tokens || {};
+            // 使用total字段（包含cache），如果没有则计算
+            const totalTokens = tokens.total || ((tokens.input || 0) + (tokens.output || 0) + (tokens.reasoning || 0));
             const tokenCountEl = document.getElementById('tokenCount');
-            if (tokenCountEl) tokenCountEl.textContent = (tokens.total || 0).toLocaleString();
+            if (tokenCountEl) tokenCountEl.textContent = totalTokens.toLocaleString();
             
             const messages = AppState.messages[sessionId] || [];
             const parts = AppState.parts[sessionId] || {};
@@ -2157,7 +2153,7 @@
             const time = msg.time?.created ? formatTime(new Date(msg.time.created).toISOString()) : '';
             
             wrap.innerHTML = `
-                <div class="msg-user-bubble">${escapeHtml(content)}</div>
+                <div class="msg-user-bubble">${escapeHtml(content).replace(/\n/g, '<br>')}</div>
                 <div class="msg-user-info">${modelInfo} | ${agentInfo} | ${time}</div>
             `;
             
@@ -3001,15 +2997,30 @@ case 'message.updated':
                                 session.last_message = lastMsgParts.map(p => p.text || '').join('').substring(0, 30);
                             }
                             // 更新tokens（从info.tokens获取）
+                            // 只有当 tokens 有实际值时才更新（OpenCode 在用户消息时发送 tokens:0）
                             if (info.tokens) {
-                                session.tokens = info.tokens;
-                                // console.log('[SSE] 更新tokens:', info.tokens);
+                                const hasTokens = info.tokens.total > 0 || 
+                                    info.tokens.input > 0 || 
+                                    info.tokens.output > 0 || 
+                                    info.tokens.reasoning > 0 ||
+                                    (info.tokens.cache && (info.tokens.cache.read > 0 || info.tokens.cache.write > 0));
+                                
+                                if (hasTokens) {
+                                    console.log('[SSE] 收到tokens:', JSON.stringify(info.tokens));
+                                    session.tokens = info.tokens;
+                                    // 保存tokens到后端
+                                    apiPost('/api/session/tokens', {
+                                        user_id: AppState.userQQ,
+                                        session_id: msgSessionId,
+                                        tokens: info.tokens
+                                    }).then(r => console.log('[API] 保存tokens结果:', r)).catch(e => console.warn('保存tokens失败:', e));
+                                    // 更新UI - 使用total字段
+                                    const totalTokens = info.tokens.total || (info.tokens.input || 0) + (info.tokens.output || 0) + (info.tokens.reasoning || 0);
+                                    document.getElementById('tokenCount').textContent = totalTokens.toLocaleString();
+                                }
                             }
                             // 更新会话时间
                             session.updated_at = info.time?.updated || info.time?.created || Date.now();
-                            // 更新UI
-                            const tokens = session.tokens || {total: 0, input: 0, output: 0};
-                            document.getElementById('tokenCount').textContent = (tokens.total || 0).toLocaleString();
                             // 刷新会话列表显示最新时间
                             renderSessions();
                         }
@@ -3643,16 +3654,6 @@ case 'message.updated':
             // 加载配置（模型和智能体列表），渲染时会应用用户配置
             await Promise.all([loadModels(), loadAgents()]);
             
-            // 加载用户目录设置
-            try {
-                const result = await apiPost('/api/directory/get', { user_id: AppState.userQQ });
-                if (result.success && result.directory) {
-                    document.getElementById('workPath').value = result.directory;
-                }
-            } catch (e) {
-                console.log('获取用户目录失败，使用默认值');
-            }
-            
             // 加载会话列表
             await loadSessions();
             
@@ -3799,7 +3800,9 @@ case 'message.updated':
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
-                    max-width: 200px;
+                    max-width: 40%;
+                    min-width: 50px;
+                    flex: 0 1 auto;
                     cursor: pointer;
                 `;
                 span.title = '点击编辑路径';
@@ -3823,7 +3826,9 @@ case 'message.updated':
                 border-radius: 4px;
                 background: white;
                 color: #333;
-                width: 200px;
+                max-width: 40%;
+                min-width: 100px;
+                flex: 0 1 auto;
                 margin-left: 12px;
             `;
 

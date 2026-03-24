@@ -50,6 +50,7 @@ class UserSession:
     message_count: int = 0
     is_active: bool = True
     system_prompt_sent: bool = False  # 系统提示词是否已发送
+    tokens: Optional[Dict[str, int]] = None  # token统计 {total, input, output}
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -244,6 +245,49 @@ class SessionManager:
             
             logger.info(f"用户 {user_id} 会话 {session_id} 路径设置为: {new_path}")
             return True
+    
+    def update_session_tokens(self, user_id: int, session_id: str, tokens: Dict[str, int]) -> bool:
+        """
+        更新会话的token统计
+        
+        Args:
+            user_id: QQ用户ID
+            session_id: OpenCode会话ID
+            tokens: token统计 {total, input, output}
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        with self.lock:
+            # 更新当前会话
+            session = self.user_sessions.get(user_id)
+            if session and session.session_id == session_id:
+                session.tokens = tokens
+                session.last_accessed = time.time()
+                
+                # 同时更新历史记录
+                for session_info in self.user_session_history.get(user_id, []):
+                    if session_info.get("session_id") == session_id:
+                        session_info["tokens"] = tokens
+                        break
+                
+                # 保存到文件
+                self.save_to_file()
+                logger.debug(f"用户 {user_id} 会话 {session_id} tokens 更新: {tokens}")
+                return True
+            
+            # 如果不是当前会话，在历史记录中查找
+            for session_info in self.user_session_history.get(user_id, []):
+                if session_info.get("session_id") == session_id:
+                    session_info["tokens"] = tokens
+                    
+                    # 保存到文件
+                    self.save_to_file()
+                    logger.debug(f"用户 {user_id} 历史会话 {session_id} tokens 更新: {tokens}")
+                    return True
+            
+            logger.warning(f"未找到用户 {user_id} 的会话 {session_id}")
+            return False
     
     def create_user_session(
         self,
@@ -505,6 +549,59 @@ class SessionManager:
             
             self.save_to_file()
             
+            return True
+    
+    def update_session_tokens(
+        self,
+        user_id: int,
+        session_id: str,
+        tokens: Dict[str, int]
+    ) -> bool:
+        """
+        更新会话的token统计
+        
+        Args:
+            user_id: QQ用户ID
+            session_id: 会话ID
+            tokens: token统计 {total, input, output}
+            
+        Returns:
+            是否更新成功
+        """
+        with self.lock:
+            # 查找会话
+            target_session = None
+            
+            # 检查当前会话
+            current_session = self.user_sessions.get(user_id)
+            if current_session and current_session.session_id == session_id:
+                target_session = current_session
+            else:
+                # 在历史记录中查找
+                history = self.user_session_history.get(user_id, [])
+                for session_info in history:
+                    if session_info.get("session_id") == session_id:
+                        # 更新历史记录中的tokens
+                        session_info["tokens"] = tokens
+                        self.save_to_file()
+                        return True
+            
+            if not target_session:
+                logger.warning(f"未找到会话 {session_id}")
+                return False
+            
+            # 更新tokens
+            target_session.tokens = tokens
+            
+            # 同时更新历史记录
+            history = self.user_session_history.get(user_id, [])
+            for session_info in history:
+                if session_info.get("session_id") == session_id:
+                    session_info["tokens"] = tokens
+                    break
+            
+            self.save_to_file()
+            logger.debug(f"更新会话 {session_id} tokens: {tokens}")
             return True
     
     def get_session_path(
@@ -1003,7 +1100,8 @@ class SessionManager:
                             "last_accessed": session_data.get("last_accessed"),
                             "agent": session_data.get("agent"),
                             "model": session_data.get("model"),
-                            "directory": session_data.get("directory", config.OPENCODE_DIRECTORY or "C:/")
+                            "directory": session_data.get("directory", config.OPENCODE_DIRECTORY or "C:/"),
+                            "tokens": session_data.get("tokens")
                         })
                     logger.info(f"从user_sessions数组初始化了 {len(self.user_session_history)} 个用户的历史记录")
 
