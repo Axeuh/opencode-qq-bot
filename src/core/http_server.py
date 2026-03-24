@@ -1716,9 +1716,41 @@ class HTTPServer:
             session_id = request.match_info.get('session_id')
             if not session_id:
                 return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
             body = await request.read()
+            
+            # 从认证中间件获取用户ID
+            user_id = request.get("user_id")
+            
+            # 构建请求头
+            headers = self._build_opencode_headers()
+            
+            # 获取用户的会话目录
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            # 确保目录不为空
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            # 设置正确的目录和 Referer
+            import base64
+            directory_b64 = base64.b64encode(user_directory.encode()).decode()
+            headers["x-opencode-directory"] = user_directory
+            headers["Referer"] = f"{OPENCODE_BASE_URL}/{directory_b64}/session/{session_id}"
+            
+            # 打印请求日志
+            logger.info(f"[OpenCode代理] POST {OPENCODE_BASE_URL}/session/{session_id}/message")
+            logger.info(f"[OpenCode代理] Headers: {headers}")
+            logger.info(f"[OpenCode代理] Body: {body[:200] if len(body) > 200 else body}")
+            
             async with ClientSession() as session:
-                headers = self._build_opencode_headers()
                 async with session.post(
                     f'{OPENCODE_BASE_URL}/session/{session_id}/message',
                     headers=headers,
@@ -2092,11 +2124,11 @@ class HTTPServer:
             self.app = web.Application(middlewares=[auth_middleware])
             self.setup_routes()
 
-            # 设置访问日志级别为DEBUG，减少INFO级别的日志输出
-            access_log = logging.getLogger('aiohttp.access')
-            access_log.setLevel(logging.DEBUG)
+            # 禁用访问日志（只保留错误日志）
+            # access_log = logging.getLogger('aiohttp.access')
+            # access_log.setLevel(logging.DEBUG)
 
-            self.runner = web.AppRunner(self.app, access_log=access_log)
+            self.runner = web.AppRunner(self.app, access_log=None)
             await self.runner.setup()
 
             # 配置SSL

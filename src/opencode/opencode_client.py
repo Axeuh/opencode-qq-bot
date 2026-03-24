@@ -194,6 +194,12 @@ class OpenCodeClient:
         if extra_headers:
             request_headers.update(extra_headers)
         
+        # 打印完整请求信息用于调试
+        logger.info(f"[OpenCode请求] {method} {url}")
+        logger.info(f"[OpenCode请求] Headers: {request_headers}")
+        if json_data:
+            logger.info(f"[OpenCode请求] Body: {json_data}")
+        
         try:
             # 构建请求参数，只有当 json_data 不为 None 时才传递
             request_kwargs = {
@@ -249,9 +255,10 @@ class OpenCodeClient:
         # 构建额外请求头（如果提供了 directory）
         extra_headers = {}
         if directory:
-            # 构建 Referer 头：/Lw/session + Base64 编码的目录路径
+            # 构建 Referer 头：完整URL + Base64 编码的目录路径 + /session
+            # 格式: http://127.0.0.1:4091/{directory_b64}/session
             directory_b64 = base64.b64encode(directory.encode()).decode()
-            referer = f"/Lw/session/{directory_b64}"
+            referer = f"{self.base_url}/{directory_b64}/session"
             extra_headers["Referer"] = referer
             extra_headers["x-opencode-directory"] = directory
         
@@ -342,9 +349,10 @@ class OpenCodeClient:
         # 构建额外请求头（如果提供了 directory）
         extra_headers = {}
         if directory:
-            # 构建 Referer 头：/Lw/session + Base64 编码的目录路径
+            # 构建 Referer 头：完整URL + Base64 编码的目录路径 + /session + 会话ID
+            # 格式: http://127.0.0.1:4091/{directory_b64}/session/{session_id}
             directory_b64 = base64.b64encode(directory.encode()).decode()
-            referer = f"/Lw/session/{directory_b64}"
+            referer = f"{self.base_url}/{directory_b64}/session/{session_id}"
             extra_headers["Referer"] = referer
             extra_headers["x-opencode-directory"] = directory
         
@@ -366,22 +374,34 @@ class OpenCodeClient:
         logger.info(f"发送消息成功，会话: {session_id}, 长度: {len(message_text)}字符")
         return data, None
     
-    async def list_messages(self, session_id: str, limit: Optional[int] = None) -> Tuple[Optional[List[Dict]], Optional[str]]:
+    async def list_messages(self, session_id: str, limit: Optional[int] = None, directory: Optional[str] = None) -> Tuple[Optional[List[Dict]], Optional[str]]:
         """
         列出会话中的消息
         
         Args:
             session_id: 会话ID
             limit: 返回的消息数量限制
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (消息列表, 错误消息) 元组
         """
+        # 构建额外请求头
+        extra_headers = None
+        if directory or self.directory:
+            work_directory = directory or self.directory
+            directory_b64 = base64.b64encode(work_directory.encode()).decode()
+            extra_headers = {
+                "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
+                "x-opencode-directory": work_directory
+            }
+        
         params = {"limit": limit} if limit else None
         data, error = await self._send_request(
             method="GET",
             endpoint=f"/session/{session_id}/message",
-            params=params
+            params=params,
+            extra_headers=extra_headers
         )
         
         if error:
@@ -472,7 +492,8 @@ class OpenCodeClient:
         self,
         session_id: str,
         provider_id: str,
-        model_id: str
+        model_id: str,
+        directory: Optional[str] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         压缩/总结当前会话上下文（异步版本）
@@ -481,25 +502,30 @@ class OpenCodeClient:
             session_id: 会话 ID
             provider_id: 提供商 ID
             model_id: 模型 ID
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (是否成功，错误消息) 元组
         """
+        # 使用传入的 directory 或默认值
+        work_directory = directory or self.directory or "/"
+        directory_b64 = base64.b64encode(work_directory.encode()).decode()
+        
         url = f"{config.OPENCODE_BASE_URL}/session/{session_id}/summarize"
         
         headers = {
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Origin": "http://127.0.0.1:4091",
-            "Referer": f"http://127.0.0.1:4091/Lw/session/{session_id}",
+            "Origin": self.base_url,
+            "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
             "sec-ch-ua": '"Not:A-Brand";v="99", "Microsoft Edge";v="145", "Chromium";v="145"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
-            "x-opencode-directory": "/"
+            "x-opencode-directory": work_directory
         }
         
         json_data = {
@@ -526,31 +552,36 @@ class OpenCodeClient:
             logger.error(f"压缩会话失败：{e}")
             return False, str(e)
 
-    async def abort_session(self, session_id: str) -> Tuple[bool, Optional[str]]:
+    async def abort_session(self, session_id: str, directory: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         中止/停止当前 OpenCode 会话（异步版本）
         
         Args:
             session_id: 会话 ID
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (是否成功，错误消息) 元组
         """
+        # 使用传入的 directory 或默认值
+        work_directory = directory or self.directory or "/"
+        directory_b64 = base64.b64encode(work_directory.encode()).decode()
+        
         url = f"{config.OPENCODE_BASE_URL}/session/{session_id}/abort"
         
         headers = {
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Origin": "http://127.0.0.1:4091",
-            "Referer": f"http://127.0.0.1:4091/Lw/session/{session_id}",
+            "Origin": self.base_url,
+            "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
             "sec-ch-ua": '"Not:A-Brand";v="99", "Microsoft Edge";v="145", "Chromium";v="145"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
-            "x-opencode-directory": "/"
+            "x-opencode-directory": work_directory
         }
         
         try:
@@ -571,16 +602,21 @@ class OpenCodeClient:
             logger.error(f"中止会话失败：{e}")
             return False, str(e)
     
-    async def revert_last_message(self, session_id: str) -> Tuple[bool, Optional[str]]:
+    async def revert_last_message(self, session_id: str, directory: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         撤销会话中的最后一条消息（异步版本）
         
         Args:
             session_id: 会话 ID
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (是否成功，错误消息) 元组
         """
+        # 使用传入的 directory 或默认值
+        work_directory = directory or self.directory or "/"
+        directory_b64 = base64.b64encode(work_directory.encode()).decode()
+        
         # 先获取消息列表以获取最后一条消息的 ID
         messages, error = await self.list_messages(session_id, limit=10)
         
@@ -598,15 +634,15 @@ class OpenCodeClient:
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Origin": "http://127.0.0.1:4091",
-            "Referer": f"http://127.0.0.1:4091/Lw/session/{session_id}",
+            "Origin": self.base_url,
+            "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
             "sec-ch-ua": '"Not:A-Brand";v="99", "Microsoft Edge";v="145", "Chromium";v="145"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
-            "x-opencode-directory": "/"
+            "x-opencode-directory": work_directory
         }
         
         try:
@@ -643,31 +679,36 @@ class OpenCodeClient:
             logger.error(f"撤销消息失败：{e}")
             return False, str(e)
     
-    async def unrevert_messages(self, session_id: str) -> Tuple[bool, Optional[str]]:
+    async def unrevert_messages(self, session_id: str, directory: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         恢复所有撤销的消息（异步版本）
         
         Args:
             session_id: 会话 ID
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (是否成功，错误消息) 元组
         """
+        # 使用传入的 directory 或默认值
+        work_directory = directory or self.directory or "/"
+        directory_b64 = base64.b64encode(work_directory.encode()).decode()
+        
         url = f"{config.OPENCODE_BASE_URL}/session/{session_id}/unrevert"
         
         headers = {
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Origin": "http://127.0.0.1:4091",
-            "Referer": f"http://127.0.0.1:4091/Lw/session/{session_id}",
+            "Origin": self.base_url,
+            "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
             "sec-ch-ua": '"Not:A-Brand";v="99", "Microsoft Edge";v="145", "Chromium";v="145"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
-            "x-opencode-directory": "/"
+            "x-opencode-directory": work_directory
         }
         
         try:
@@ -710,19 +751,47 @@ class OpenCodeClient:
         models = []
         if isinstance(data, dict) and "providers" in data:
             for provider in data["providers"]:
-                provider_id = provider.get("id")
-                for model in provider.get("models", []):
-                    model_id = model.get("id")
-                    model_name = model.get("name", model_id)
-                    models.append({
-                        "provider_id": provider_id,
-                        "provider_name": provider.get("name", provider_id),
-                        "model_id": model_id,
-                        "model_name": model_name,
-                        "description": model.get("description", ""),
-                        "context_length": model.get("contextLength"),
-                        "max_output_tokens": model.get("maxOutputTokens"),
-                    })
+                provider_id = provider.get("id") if isinstance(provider, dict) else ""
+                provider_name = provider.get("name", provider_id) if isinstance(provider, dict) else str(provider_id)
+                
+                # models 可能是字典格式 {"model-id": {...}} 或列表格式 [{...}, ...]
+                provider_models = provider.get("models") if isinstance(provider, dict) else None
+                
+                if isinstance(provider_models, dict):
+                    # 字典格式: {"model-id": {model_data}, ...}
+                    for model_id, model_data in provider_models.items():
+                        if isinstance(model_data, dict):
+                            models.append({
+                                "provider_id": provider_id,
+                                "provider_name": provider_name,
+                                "model_id": model_id,
+                                "model_name": model_data.get("name", model_id),
+                                "description": model_data.get("description", ""),
+                                "context_length": model_data.get("limit", {}).get("context"),
+                                "max_output_tokens": model_data.get("limit", {}).get("output"),
+                            })
+                        else:
+                            # model_data 不是字典，直接用 model_id
+                            models.append({
+                                "provider_id": provider_id,
+                                "provider_name": provider_name,
+                                "model_id": str(model_id),
+                                "model_name": str(model_id),
+                            })
+                elif isinstance(provider_models, list):
+                    # 列表格式: [{model_data}, ...]
+                    for model in provider_models:
+                        if isinstance(model, dict):
+                            model_id = model.get("id", "")
+                            models.append({
+                                "provider_id": provider_id,
+                                "provider_name": provider_name,
+                                "model_id": model_id,
+                                "model_name": model.get("name", model_id),
+                                "description": model.get("description", ""),
+                                "context_length": model.get("contextLength"),
+                                "max_output_tokens": model.get("maxOutputTokens"),
+                            })
         
         return models, None
     
@@ -802,7 +871,8 @@ class OpenCodeClient:
         agent: Optional[str] = None,
         model: Optional[str] = None,
         provider: Optional[str] = None,
-        arguments: Optional[str] = ""
+        arguments: Optional[str] = "",
+        directory: Optional[str] = None
     ) -> Tuple[Optional[Dict], Optional[str]]:
         """
         在指定会话中执行斜杠命令
@@ -815,6 +885,7 @@ class OpenCodeClient:
             model: 模型 ID（可选）
             provider: 提供商 ID（可选）
             arguments: 命令参数（可选，默认为空字符串）
+            directory: 工作目录（可选，默认使用 self.directory）
             
         Returns:
             (响应数据 {info: Message, parts: Part[]}, 错误消息) 元组
@@ -849,10 +920,21 @@ class OpenCodeClient:
         if message_id:
             payload["messageID"] = message_id
         
+        # 构建额外请求头
+        extra_headers = None
+        if directory or self.directory:
+            work_directory = directory or self.directory
+            directory_b64 = base64.b64encode(work_directory.encode()).decode()
+            extra_headers = {
+                "Referer": f"{self.base_url}/{directory_b64}/session/{session_id}",
+                "x-opencode-directory": work_directory
+            }
+        
         data, error = await self._send_request(
             method="POST",
             endpoint=f"/session/{session_id}/command",
-            json_data=payload
+            json_data=payload,
+            extra_headers=extra_headers
         )
         
         if error:

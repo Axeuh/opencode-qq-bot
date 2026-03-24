@@ -495,6 +495,14 @@ class SessionManager:
             
             # 更新会话路径
             target_session.directory = new_path
+            
+            # 同时更新历史记录中该会话的路径
+            history = self.user_session_history.get(user_id, [])
+            for session_info in history:
+                if session_info.get("session_id") == target_session.session_id:
+                    session_info["directory"] = new_path
+                    break
+            
             self.save_to_file()
             
             return True
@@ -994,7 +1002,8 @@ class SessionManager:
                             "created_at": session_data.get("created_at", time.time()),
                             "last_accessed": session_data.get("last_accessed"),
                             "agent": session_data.get("agent"),
-                            "model": session_data.get("model")
+                            "model": session_data.get("model"),
+                            "directory": session_data.get("directory", config.OPENCODE_DIRECTORY or "C:/")
                         })
                     logger.info(f"从user_sessions数组初始化了 {len(self.user_session_history)} 个用户的历史记录")
 
