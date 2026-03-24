@@ -579,10 +579,10 @@ class HTTPCallbackHandler:
         # 获取目标会话
         target_session_id = None
         if session_id:
-            # get_session_by_id 返回字典，不是 UserSession 对象
+            # get_session_by_id 返回 UserSession 对象，不是字典
             session_info = self.session_manager.get_session_by_id(user_id, session_id)
             if session_info:
-                target_session_id = session_info.get("session_id")
+                target_session_id = session_info.session_id
         else:
             current_session = self.session_manager.get_user_session(user_id)
             if current_session:
