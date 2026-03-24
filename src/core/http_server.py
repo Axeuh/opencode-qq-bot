@@ -9,9 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import ssl
 import time
 from collections import defaultdict
-from typing import Optional, Callable, Dict, Any, Awaitable, List
+from typing import Optional, Callable, Dict, Any, Awaitable, List, Tuple
 
 from aiohttp import web, ClientSession, ClientError
 
@@ -36,7 +37,10 @@ class HTTPServer:
         self,
         host: str = "127.0.0.1",
         port: int = 8080,
+        http_port: Optional[int] = None,  # HTTP端口（可选，用于同时支持HTTP和HTTPS）
         access_token: str = "",
+        ssl_cert: Optional[str] = None,
+        ssl_key: Optional[str] = None,
         reload_callback: Optional[Callable[[], Awaitable[Dict[str, Any]]]] = None,
         get_user_config_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
         set_user_config_callback: Optional[Callable[[int, str, Any], Awaitable[Dict[str, Any]]]] = None,
@@ -55,7 +59,7 @@ class HTTPServer:
         set_session_title_callback: Optional[Callable[[int, str, str], Awaitable[Dict[str, Any]]]] = None,
         # Directory 回调
         get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
-        set_directory_callback: Optional[Callable[[int, str], Awaitable[Dict[str, Any]]]] = None
+        set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None
     ):
         """初始化 HTTP 服务器
 
@@ -79,7 +83,10 @@ class HTTPServer:
         """
         self.host = host
         self.port = port
+        self.http_port = http_port
         self.access_token = access_token
+        self.ssl_cert = ssl_cert
+        self.ssl_key = ssl_key
         self.reload_callback = reload_callback
         self.get_user_config_callback = get_user_config_callback
         self.set_user_config_callback = set_user_config_callback
@@ -103,11 +110,15 @@ class HTTPServer:
         self.app: Optional[web.Application] = None
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
+        self.http_site: Optional[web.TCPSite] = None  # HTTP站点（可选）
         self._running = False
         
         # 登录速率限制
         self._login_attempts: Dict[str, List[float]] = defaultdict(list)  # IP -> [timestamp1, timestamp2, ...]
         self._login_cooldown: Dict[str, float] = {}  # IP -> last_attempt_time
+        
+        # Web登录session管理
+        self._web_sessions: Dict[str, Dict[str, Any]] = {}  # token -> {user_id, created_at, expires_at}
         
         # 加载白名单配置
         self._whitelist: List[int] = []
@@ -118,33 +129,95 @@ class HTTPServer:
         except (ImportError, AttributeError):
             pass
 
-    def _check_auth(self, request: web.Request) -> bool:
+    def _generate_session_token(self) -> str:
+        """生成随机会话token"""
+        import secrets
+        return secrets.token_hex(32)
+    
+    def _create_web_session(self, user_id: int) -> str:
+        """创建Web会话
+        
+        Args:
+            user_id: 用户QQ号
+            
+        Returns:
+            会话token
+        """
+        import time
+        token = self._generate_session_token()
+        now = time.time()
+        self._web_sessions[token] = {
+            "user_id": user_id,
+            "created_at": now,
+            "expires_at": now + 86400 * 7  # 7天过期
+        }
+        return token
+    
+    def _validate_web_session(self, token: str) -> Optional[int]:
+        """验证Web会话
+        
+        Args:
+            token: 会话token
+            
+        Returns:
+            用户ID，如果无效返回None
+        """
+        if not token or token not in self._web_sessions:
+            return None
+        
+        session = self._web_sessions[token]
+        now = time.time()
+        
+        # 检查是否过期
+        if now > session["expires_at"]:
+            del self._web_sessions[token]
+            return None
+        
+        return session["user_id"]
+    
+    def _destroy_web_session(self, token: str) -> None:
+        """销毁Web会话"""
+        if token in self._web_sessions:
+            del self._web_sessions[token]
+
+    def _check_auth(self, request: web.Request) -> Tuple[bool, Optional[int]]:
         """检查请求认证
 
         Args:
             request: HTTP 请求对象
 
         Returns:
-            认证是否通过
+            (认证是否通过, 用户ID)
         """
-        # 如果未配置 access_token，则不需要认证
-        if not self.access_token:
-            return True
-
         # 从 Authorization header 获取 token
         auth_header = request.headers.get("Authorization", "")
-
+        
         # 支持 Bearer token 和直接 token
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
         else:
             token = auth_header
-
+        
         # 也支持从查询参数获取 token
         if not token:
             token = request.query.get("token", "")
-
-        return token == self.access_token
+        
+        # 也支持从Cookie获取token
+        if not token:
+            cookies = request.cookies
+            token = cookies.get("session_token", "")
+        
+        # 检查Web会话token
+        if token:
+            user_id = self._validate_web_session(token)
+            if user_id:
+                return True, user_id
+        
+        # 如果配置了 access_token，也支持API token认证
+        if self.access_token and token == self.access_token:
+            return True, None
+        
+        return False, None
 
     def _check_rate_limit(self, client_ip: str) -> Dict[str, Any]:
         """检查登录速率限制
@@ -191,7 +264,9 @@ class HTTPServer:
         
         检查:
         1. QQ号是否在白名单中
-        2. 速率限制（同一设备2秒只能尝试一次，1分钟最多10次）
+        2. 用户是否设置了密码
+        3. 密码验证
+        4. 速率限制（同一设备2秒只能尝试一次，1分钟最多10次）
         """
         try:
             # 获取客户端IP
@@ -213,6 +288,8 @@ class HTTPServer:
                 }, status=400)
             
             qq_id = body.get("qq_id")
+            password = body.get("password", "")
+            
             if not qq_id:
                 self._record_login_attempt(client_ip)
                 return web.json_response({
@@ -238,15 +315,71 @@ class HTTPServer:
                     "error": "您不在白名单中，无法登录"
                 }, status=403)
             
-            # 登录成功
-            self._record_login_attempt(client_ip)
-            logger.info(f"用户登录成功: QQ={qq_id}, IP={client_ip}")
+            # 获取会话管理器
+            try:
+                from ..session.session_manager import get_session_manager
+                session_manager = get_session_manager()
+            except ImportError:
+                session_manager = None
             
-            return web.json_response({
-                "success": True,
-                "message": "登录成功",
-                "qq_id": qq_id
-            })
+            # 检查用户是否设置了密码
+            has_password = session_manager.user_has_password(qq_id) if session_manager else False
+            
+            if not has_password:
+                # 用户未设置密码，返回需要设置密码的响应
+                self._record_login_attempt(client_ip)
+                logger.info(f"用户未设置密码: QQ={qq_id}, IP={client_ip}")
+                return web.json_response({
+                    "success": False,
+                    "need_set_password": True,
+                    "error": "请先设置密码"
+                }, status=200)
+            
+            # 用户已设置密码，验证密码
+            if not password:
+                self._record_login_attempt(client_ip)
+                return web.json_response({
+                    "success": False,
+                    "need_password": True,
+                    "error": "请输入密码"
+                }, status=200)
+            
+            # 验证密码
+            if session_manager and session_manager.verify_user_password(qq_id, password):
+                # 登录成功
+                self._record_login_attempt(client_ip)
+                logger.info(f"用户登录成功: QQ={qq_id}, IP={client_ip}")
+                
+                # 创建Web会话token
+                session_token = self._create_web_session(qq_id)
+                
+                response = web.json_response({
+                    "success": True,
+                    "message": "登录成功",
+                    "qq_id": qq_id,
+                    "token": session_token
+                })
+                
+                # 设置Cookie
+                response.set_cookie(
+                    "session_token", 
+                    session_token, 
+                    max_age=86400 * 7,  # 7天
+                    httponly=True,
+                    secure=True,  # 仅HTTPS
+                    samesite="Lax"
+                )
+                
+                return response
+            else:
+                # 密码错误
+                self._record_login_attempt(client_ip)
+                logger.warning(f"密码错误: QQ={qq_id}, IP={client_ip}")
+                return web.json_response({
+                    "success": False,
+                    "need_password": True,
+                    "error": "密码错误"
+                }, status=200)
             
         except Exception as e:
             logger.error(f"处理登录请求失败: {e}")
@@ -262,6 +395,191 @@ class HTTPServer:
             "status": "healthy",
             "service": "QQ Bot HTTP Server"
         })
+
+    async def handle_set_password(self, request: web.Request) -> web.Response:
+        """设置密码端点（首次设置）
+        
+        请求格式: {"qq_id": 123456, "password": "xxx"}
+        """
+        try:
+            # 解析请求体
+            try:
+                body = await request.json()
+            except json.JSONDecodeError:
+                return web.json_response({
+                    "success": False,
+                    "error": "无效的请求格式"
+                }, status=400)
+            
+            qq_id = body.get("qq_id")
+            password = body.get("password", "")
+            
+            if not qq_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "请输入QQ号"
+                }, status=400)
+            
+            try:
+                qq_id = int(qq_id)
+            except ValueError:
+                return web.json_response({
+                    "success": False,
+                    "error": "QQ号必须是数字"
+                }, status=400)
+            
+            # 检查密码长度
+            if len(password) < 6:
+                return web.json_response({
+                    "success": False,
+                    "error": "密码长度至少6位"
+                }, status=400)
+            
+            # 检查白名单
+            if self._whitelist and qq_id not in self._whitelist:
+                logger.warning(f"非白名单用户尝试设置密码: QQ={qq_id}")
+                return web.json_response({
+                    "success": False,
+                    "error": "您不在白名单中"
+                }, status=403)
+            
+            # 获取会话管理器
+            try:
+                from ..session.session_manager import get_session_manager
+                session_manager = get_session_manager()
+            except ImportError:
+                return web.json_response({
+                    "success": False,
+                    "error": "服务器配置错误"
+                }, status=500)
+            
+            # 检查用户是否已设置密码
+            if session_manager.user_has_password(qq_id):
+                return web.json_response({
+                    "success": False,
+                    "error": "您已设置密码，请使用修改密码功能"
+                }, status=400)
+            
+            # 设置密码
+            if session_manager.set_user_password(qq_id, password):
+                logger.info(f"用户设置密码成功: QQ={qq_id}")
+                
+                # 创建Web会话token
+                session_token = self._create_web_session(qq_id)
+                
+                response = web.json_response({
+                    "success": True,
+                    "message": "密码设置成功",
+                    "token": session_token
+                })
+                
+                # 设置Cookie
+                response.set_cookie(
+                    "session_token", 
+                    session_token, 
+                    max_age=86400 * 7,  # 7天
+                    httponly=True,
+                    secure=True,  # 仅HTTPS
+                    samesite="Lax"
+                )
+                
+                return response
+            else:
+                return web.json_response({
+                    "success": False,
+                    "error": "密码设置失败"
+                }, status=500)
+            
+        except Exception as e:
+            logger.error(f"设置密码失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "服务器错误"
+            }, status=500)
+
+    async def handle_change_password(self, request: web.Request) -> web.Response:
+        """修改密码端点
+        
+        请求格式: {"qq_id": 123456, "old_password": "xxx", "new_password": "xxx"}
+        """
+        try:
+            # 解析请求体
+            try:
+                body = await request.json()
+            except json.JSONDecodeError:
+                return web.json_response({
+                    "success": False,
+                    "error": "无效的请求格式"
+                }, status=400)
+            
+            qq_id = body.get("qq_id")
+            old_password = body.get("old_password", "")
+            new_password = body.get("new_password", "")
+            
+            if not qq_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "请输入QQ号"
+                }, status=400)
+            
+            try:
+                qq_id = int(qq_id)
+            except ValueError:
+                return web.json_response({
+                    "success": False,
+                    "error": "QQ号必须是数字"
+                }, status=400)
+            
+            # 检查新密码长度
+            if len(new_password) < 6:
+                return web.json_response({
+                    "success": False,
+                    "error": "新密码长度至少6位"
+                }, status=400)
+            
+            # 获取会话管理器
+            try:
+                from ..session.session_manager import get_session_manager
+                session_manager = get_session_manager()
+            except ImportError:
+                return web.json_response({
+                    "success": False,
+                    "error": "服务器配置错误"
+                }, status=500)
+            
+            # 检查用户是否设置了密码
+            if not session_manager.user_has_password(qq_id):
+                return web.json_response({
+                    "success": False,
+                    "error": "您尚未设置密码，请先设置密码"
+                }, status=400)
+            
+            # 验证旧密码
+            if not session_manager.verify_user_password(qq_id, old_password):
+                return web.json_response({
+                    "success": False,
+                    "error": "原密码错误"
+                }, status=400)
+            
+            # 设置新密码
+            if session_manager.set_user_password(qq_id, new_password):
+                logger.info(f"用户修改密码成功: QQ={qq_id}")
+                return web.json_response({
+                    "success": True,
+                    "message": "密码修改成功"
+                })
+            else:
+                return web.json_response({
+                    "success": False,
+                    "error": "密码修改失败"
+                }, status=500)
+            
+        except Exception as e:
+            logger.error(f"修改密码失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": "服务器错误"
+            }, status=500)
 
     async def handle_reload(self, request: web.Request) -> web.Response:
         """热重载机器人端点（重载代码和配置）"""
@@ -444,6 +762,7 @@ class HTTPServer:
                 "success": True,
                 "user_id": user_id,
                 "model": result.get("model", ""),
+                "agent": result.get("agent", ""),
                 "provider": result.get("provider", "")
             })
 
@@ -1230,6 +1549,7 @@ class HTTPServer:
             # 验证必需参数
             user_id = body.get("user_id")
             directory = body.get("directory")
+            session_id = body.get("session_id")  # 可选参数
 
             if not user_id:
                 return web.json_response({
@@ -1251,8 +1571,8 @@ class HTTPServer:
                     "error": "Invalid user_id, must be an integer"
                 }, status=400)
 
-            # 设置用户目录
-            result = await self.set_directory_callback(user_id, directory)
+            # 设置用户目录（传递session_id）
+            result = await self.set_directory_callback(user_id, directory, session_id)
 
             if not result.get("success", True):
                 return web.json_response({
@@ -1482,6 +1802,137 @@ class HTTPServer:
             logger.error(f"获取QQ用户信息失败: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
+    async def handle_upload(self, request: web.Request) -> web.Response:
+        """文件上传端点 (POST /api/upload)
+        
+        接收 multipart/form-data 请求，保存文件到 downloads/{user_id}/ 目录
+        
+        字段:
+            - file: 上传的文件
+            - user_id: 用户QQ号
+            
+        支持的文件类型:
+            - 图片: jpg, png, gif, webp
+            - 文档: pdf, doc, docx, xlsx, txt
+            - 压缩包: zip, rar
+            
+        最大文件大小: 50MB
+        """
+        import os
+        from datetime import datetime
+        
+        # 允许的文件扩展名
+        ALLOWED_EXTENSIONS = {
+            # 图片
+            'jpg', 'jpeg', 'png', 'gif', 'webp',
+            # 文档
+            'pdf', 'doc', 'docx', 'xlsx', 'txt',
+            # 压缩包
+            'zip', 'rar'
+        }
+        
+        # 最大文件大小 50MB
+        MAX_FILE_SIZE = 50 * 1024 * 1024
+        
+        try:
+            # 获取 multipart reader
+            reader = await request.multipart()
+            
+            file_data = None
+            file_name = None
+            user_id = None
+            
+            # 解析 multipart 字段
+            async for field in reader:
+                if field.name == 'user_id':
+                    # 读取 user_id 字段
+                    user_id_bytes = await field.read()
+                    user_id = user_id_bytes.decode('utf-8')
+                    
+                elif field.name == 'file':
+                    # 读取文件字段
+                    file_name = field.filename
+                    file_data = await field.read()
+            
+            # 验证必需参数
+            if not user_id:
+                return web.json_response({
+                    "success": False,
+                    "error": "Missing required field: user_id"
+                }, status=400)
+            
+            if not file_data or not file_name:
+                return web.json_response({
+                    "success": False,
+                    "error": "Missing required field: file"
+                }, status=400)
+            
+            # 验证 user_id 格式
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                return web.json_response({
+                    "success": False,
+                    "error": "Invalid user_id, must be an integer"
+                }, status=400)
+            
+            # 检查文件大小
+            file_size = len(file_data)
+            if file_size > MAX_FILE_SIZE:
+                return web.json_response({
+                    "success": False,
+                    "error": f"File size exceeds limit: {file_size} bytes > {MAX_FILE_SIZE} bytes (50MB)"
+                }, status=400)
+            
+            # 检查文件类型
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            if file_ext not in ALLOWED_EXTENSIONS:
+                return web.json_response({
+                    "success": False,
+                    "error": f"File type not allowed: {file_ext}. Allowed types: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                }, status=400)
+            
+            # 创建用户目录
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            download_dir = os.path.join(base_dir, 'downloads', str(user_id))
+            os.makedirs(download_dir, exist_ok=True)
+            
+            # 处理文件名冲突
+            safe_filename = "".join(c for c in file_name if c.isalnum() or c in "._- ")
+            save_path = os.path.join(download_dir, safe_filename)
+            
+            # 如果文件已存在，添加时间戳
+            if os.path.exists(save_path):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                base_name, ext = os.path.splitext(safe_filename)
+                safe_filename = f"{base_name}_{timestamp}{ext}"
+                save_path = os.path.join(download_dir, safe_filename)
+            
+            # 保存文件
+            with open(save_path, 'wb') as f:
+                f.write(file_data)
+            
+            # 构建返回路径
+            relative_path = f"downloads/{user_id}/{safe_filename}"
+            absolute_path = os.path.abspath(save_path)
+            
+            logger.info(f"文件上传成功: user_id={user_id}, file={safe_filename}, size={file_size}")
+            
+            return web.json_response({
+                "success": True,
+                "file_path": relative_path,
+                "absolute_path": absolute_path,
+                "file_name": safe_filename,
+                "file_size": file_size
+            })
+            
+        except Exception as e:
+            logger.error(f"文件上传失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+
     async def handle_not_found(self, request: web.Request) -> web.Response:
         """404 处理"""
         return web.json_response({
@@ -1504,12 +1955,56 @@ class HTTPServer:
                 return web.FileResponse(abs_path)
         return web.json_response({"success": False, "error": "index.html not found"}, status=404)
 
+    async def auth_middleware(self, app: web.Application, handler: Callable) -> Callable:
+        """认证中间件
+        
+        自动验证所有需要认证的API端点
+        """
+        async def middleware_handler(request: web.Request) -> web.StreamResponse:
+            # 公开路径，不需要认证
+            public_paths = [
+                "/health",
+                "/api/login",
+                "/api/password/set",
+                "/api/password/change",
+                "/",
+                "/index.html"
+            ]
+            
+            # 检查是否是公开路径
+            if request.path in public_paths:
+                return await handler(request)
+            
+            # 检查是否是静态文件
+            if not request.path.startswith("/api/"):
+                return await handler(request)
+            
+            # 需要认证的API端点
+            is_authenticated, user_id = self._check_auth(request)
+            
+            if not is_authenticated:
+                return web.json_response({
+                    "success": False,
+                    "error": "未登录或会话已过期",
+                    "need_login": True
+                }, status=401)
+            
+            # 将用户ID存储到请求中
+            request["user_id"] = user_id
+            
+            return await handler(request)
+        
+        return middleware_handler
+
     def setup_routes(self) -> None:
         """设置路由"""
         self.app.router.add_get("/health", self.handle_health)
         self.app.router.add_post("/api/reload", self.handle_reload)
         # 登录验证
         self.app.router.add_post("/api/login", self.handle_login)
+        # 密码管理
+        self.app.router.add_post("/api/password/set", self.handle_set_password)
+        self.app.router.add_post("/api/password/change", self.handle_change_password)
         # 静态文件
         self.app.router.add_get("/", self.handle_index)
         self.app.router.add_get("/index.html", self.handle_index)
@@ -1535,6 +2030,8 @@ class HTTPServer:
         # Directory 端点
         self.app.router.add_post("/api/directory/get", self.handle_get_directory)
         self.app.router.add_post("/api/directory/set", self.handle_set_directory)
+        # 文件上传端点
+        self.app.router.add_post("/api/upload", self.handle_upload)
         # OpenCode 代理端点
         self.app.router.add_get("/api/opencode/events", self.handle_opencode_events)
         self.app.router.add_get("/api/opencode/sessions", self.handle_opencode_session_list)
@@ -1559,30 +2056,75 @@ class HTTPServer:
             # 创建中间件
             @web.middleware
             async def auth_middleware(request: web.Request, handler: Callable) -> web.Response:
-                # 跳过健康检查端点的认证
-                if request.path == "/health":
+                # 公开路径，不需要认证
+                public_paths = [
+                    "/health",
+                    "/api/login",
+                    "/api/password/set",
+                    "/api/password/change",
+                    "/",
+                    "/index.html"
+                ]
+                
+                # 检查是否是公开路径
+                if request.path in public_paths:
                     return await handler(request)
-
-                # 检查认证
-                if not self._check_auth(request):
-                    return web.json_response(
-                        {"success": False, "error": "Unauthorized"},
-                        status=401
-                    )
-
+                
+                # 检查是否是静态文件
+                if not request.path.startswith("/api/"):
+                    return await handler(request)
+                
+                # 需要认证的API端点
+                is_authenticated, user_id = self._check_auth(request)
+                
+                if not is_authenticated:
+                    return web.json_response({
+                        "success": False,
+                        "error": "未登录或会话已过期",
+                        "need_login": True
+                    }, status=401)
+                
+                # 将用户ID存储到请求中
+                request["user_id"] = user_id
+                
                 return await handler(request)
 
             self.app = web.Application(middlewares=[auth_middleware])
             self.setup_routes()
 
-            self.runner = web.AppRunner(self.app)
+            # 设置访问日志级别为DEBUG，减少INFO级别的日志输出
+            access_log = logging.getLogger('aiohttp.access')
+            access_log.setLevel(logging.DEBUG)
+
+            self.runner = web.AppRunner(self.app, access_log=access_log)
             await self.runner.setup()
 
-            self.site = web.TCPSite(self.runner, self.host, self.port)
+            # 配置SSL
+            ssl_context = None
+            if self.ssl_cert and self.ssl_key:
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ssl_context.load_cert_chain(self.ssl_cert, self.ssl_key)
+                logger.info(f"SSL证书已加载: {self.ssl_cert}")
+
+            # 创建主站点（HTTPS或HTTP）
+            self.site = web.TCPSite(self.runner, self.host, self.port, ssl_context=ssl_context)
             await self.site.start()
 
+            # 如果配置了SSL和HTTP端口，创建额外的HTTP站点
+            if ssl_context and self.http_port:
+                self.http_site = web.TCPSite(self.runner, self.host, self.http_port, ssl_context=None)
+                await self.http_site.start()
+                logger.info(f"HTTP 服务器已启动: http://{self.host}:{self.http_port}")
+
             self._running = True
-            logger.info(f"HTTP 服务器已启动: http://{self.host}:{self.port}")
+            
+            # 显示启动信息
+            if ssl_context:
+                logger.info(f"HTTPS 服务器已启动: https://{self.host}:{self.port}")
+                if self.http_port:
+                    logger.info(f"HTTP 服务器已启动: http://{self.host}:{self.http_port}")
+            else:
+                logger.info(f"HTTP 服务器已启动: http://{self.host}:{self.port}")
             logger.info(f"API 端点:")
             logger.info(f"  GET  /health           - 健康检查")
             logger.info(f"  POST /api/reload       - 热重载代码和配置")

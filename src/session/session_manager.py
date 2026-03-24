@@ -57,8 +57,11 @@ class UserSession:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UserSession':
-        """从字典创建"""
-        return cls(**data)
+        """从字典创建，过滤未知字段"""
+        import dataclasses
+        field_names = {f.name for f in dataclasses.fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in field_names}
+        return cls(**filtered_data)
     
     def update_access(self) -> None:
         """更新访问时间"""
@@ -72,10 +75,10 @@ class UserSession:
 class UserConfig:
     """用户配置"""
     user_id: int
+    password: str = ""  # bcrypt哈希密码
     agent: str = config.OPENCODE_DEFAULT_AGENT
     model: str = config.OPENCODE_DEFAULT_MODEL
     provider: str = config.OPENCODE_DEFAULT_PROVIDER
-    directory: str = config.OPENCODE_DIRECTORY
     created_at: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -84,8 +87,11 @@ class UserConfig:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UserConfig':
-        """从字典创建"""
-        return cls(**data)
+        """从字典创建，过滤未知字段"""
+        import dataclasses
+        field_names = {f.name for f in dataclasses.fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in field_names}
+        return cls(**filtered_data)
 
 
 class SessionManager:
@@ -175,6 +181,70 @@ class SessionManager:
                 session.update_access()
             return session
     
+    def get_session_by_id(self, user_id: int, session_id: str) -> Optional[UserSession]:
+        """
+        根据session_id获取用户的指定会话
+        
+        Args:
+            user_id: QQ用户ID
+            session_id: OpenCode会话ID
+            
+        Returns:
+            用户会话对象，如果不存在则返回None
+        """
+        with self.lock:
+            # 先检查是否是当前会话
+            current = self.user_sessions.get(user_id)
+            if current and current.session_id == session_id:
+                current.update_access()
+                return current
+            
+            # 从历史记录中查找
+            # 注意：历史记录只保存了会话信息，不是完整的UserSession对象
+            # 如果需要完整数据，可能需要从持久化存储加载
+            # 这里我们返回None，让调用者知道这个会话不在当前活跃状态
+            return None
+    
+    def set_session_path(self, user_id: int, session_id: str, path: str = None, reset_to_default: bool = False) -> bool:
+        """设置会话的工作路径
+        
+        Args:
+            user_id: 用户ID
+            session_id: 会话ID
+            path: 新路径（如果reset_to_default为True则忽略）
+            reset_to_default: 是否重置为默认路径
+            
+        Returns:
+            是否成功设置
+        """
+        with self.lock:
+            # 获取当前会话
+            current = self.user_sessions.get(user_id)
+            if not current or current.session_id != session_id:
+                return False
+            
+            # 确定要设置的路径
+            if reset_to_default:
+                new_path = config.OPENCODE_DIRECTORY or "C:/"
+            else:
+                new_path = path
+            
+            # 更新当前会话的路径
+            current.directory = new_path
+            
+            # 更新历史记录中该会话的路径
+            history = self.user_session_history.get(user_id, [])
+            for session_info in history:
+                if session_info.get("session_id") == session_id:
+                    session_info["directory"] = new_path
+                    break
+            
+            # 保存到文件
+            self.save_to_file()
+            
+            logger.info(f"用户 {user_id} 会话 {session_id} 路径设置为: {new_path}")
+            return True
+    
     def create_user_session(
         self,
         user_id: int,
@@ -234,7 +304,7 @@ class SessionManager:
                 agent=config_obj.agent,
                 model=config_obj.model,
                 provider=config_obj.provider,
-                directory=config_obj.directory,
+                directory=config.OPENCODE_DIRECTORY or "C:/",  # 使用默认路径而不是用户配置
                 created_at=time.time(),
                 last_accessed=time.time()
             )
@@ -250,13 +320,14 @@ class SessionManager:
             if user_id not in self.user_session_history:
                 self.user_session_history[user_id] = []
             
-            # 限制历史记录数量
+# 限制历史记录数量
             history = self.user_session_history[user_id]
             history.append({
                 "session_id": session_id,
                 "title": session_title,
                 "created_at": time.time(),
-                "last_accessed": time.time()
+                "last_accessed": time.time(),
+                "directory": config.OPENCODE_DIRECTORY or "C:/"  # 记录会话的默认目录
             })
             if len(history) > self.max_sessions_per_user:
                 removed = history.pop(0)
@@ -281,8 +352,7 @@ class SessionManager:
         user_id: int,
         agent: Optional[str] = None,
         model: Optional[str] = None,
-        provider: Optional[str] = None,
-        directory: Optional[str] = None
+        provider: Optional[str] = None
     ) -> Optional[UserConfig]:
         """
         更新用户配置
@@ -292,7 +362,6 @@ class SessionManager:
             agent: 智能体
             model: 模型
             provider: 提供商
-            directory: 工作目录
             
         Returns:
             更新后的配置对象，如果用户不存在则返回 None
@@ -331,9 +400,6 @@ class SessionManager:
                 if config_obj.provider != provider:
                     config_obj.provider = provider
                     updated = True
-            if directory is not None:
-                config_obj.directory = directory
-                updated = True
             
             # 同时更新当前会话的配置（如果存在）
             session = self.user_sessions.get(user_id)
@@ -341,17 +407,139 @@ class SessionManager:
                 if agent is not None:
                     session.agent = agent
                 if model is not None:
-                    session.model = model
+                    # 使用分离后的模型名称，保持与 config_obj 一致
+                    session.model = config_obj.model
                 if provider is not None:
-                    session.provider = provider
-                if directory is not None:
-                    session.directory = directory
+                    # 使用提取或传入的供应商，保持与 config_obj 一致
+                    session.provider = config_obj.provider
             
             if updated:
-                logger.info(f"更新用户配置：用户={user_id}, agent={agent}, model={model}, provider={provider}, directory={directory}")
+                logger.info(f"更新用户配置：用户={user_id}, agent={agent}, model={model}, provider={provider}")
                 self.save_to_file()
             
             return config_obj
+    
+    def get_user_config(self, user_id: int) -> Optional[UserConfig]:
+        """
+        获取用户配置
+        
+        Args:
+            user_id: QQ 用户 ID
+            
+        Returns:
+            用户配置对象，如果不存在则返回 None
+        """
+        with self.lock:
+            return self.user_configs.get(user_id)
+    
+    def set_session_path(
+        self,
+        user_id: int,
+        session_id: Optional[str] = None,
+        path: Optional[str] = None,
+        reset_to_default: bool = False
+    ) -> bool:
+        """
+        设置会话路径
+        
+        Args:
+            user_id: QQ用户ID
+            session_id: 会话ID（如果为None则使用当前会话）
+            path: 要设置的路径（如果reset_to_default为True则忽略）
+            reset_to_default: 是否重置为默认路径
+            
+        Returns:
+            是否成功设置
+        """
+        with self.lock:
+            # 获取要设置的会话
+            target_session = None
+            
+            # 如果提供了session_id，查找对应会话
+            if session_id:
+                # 检查是否是当前会话
+                current_session = self.user_sessions.get(user_id)
+                if current_session and current_session.session_id == session_id:
+                    target_session = current_session
+                else:
+                    # 在历史记录中查找会话
+                    history = self.user_session_history.get(user_id, [])
+                    for session_info in history:
+                        if session_info.get("session_id") == session_id:
+                            # 找到历史会话，但需要确保该会话存在用户会话中
+                            # 如果不是当前会话，我们无法直接修改它的路径
+                            # 在这种情况下，只修改当前会话或返回错误
+                            pass
+            
+            # 如果没有指定session_id或未找到，使用当前会话
+            if not target_session:
+                target_session = self.user_sessions.get(user_id)
+            
+            if not target_session:
+                logger.warning(f"未找到用户 {user_id} 的会话")
+                return False
+            
+            # 确定要设置的路径
+            if reset_to_default:
+                # 重置为默认路径
+                new_path = config.OPENCODE_DIRECTORY or "C:/"
+                logger.info(f"重置用户 {user_id} 会话 {target_session.session_id} 路径为默认: {new_path}")
+            elif path is not None:
+                # 设置指定路径
+                new_path = path
+                logger.info(f"设置用户 {user_id} 会话 {target_session.session_id} 路径为: {new_path}")
+            else:
+                # 既没有指定路径也没有要求重置
+                logger.warning(f"未指定路径也未要求重置: user_id={user_id}")
+                return False
+            
+            # 更新会话路径
+            target_session.directory = new_path
+            self.save_to_file()
+            
+            return True
+    
+    def get_session_path(
+        self,
+        user_id: int,
+        session_id: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        获取会话路径
+        
+        Args:
+            user_id: QQ用户ID
+            session_id: 会话ID（如果为None则使用当前会话）
+            
+        Returns:
+            会话路径，如果未找到则返回None
+        """
+        with self.lock:
+            # 获取要查询的会话
+            target_session = None
+            
+            # 如果提供了session_id，查找对应会话
+            if session_id:
+                # 检查是否是当前会话
+                current_session = self.user_sessions.get(user_id)
+                if current_session and current_session.session_id == session_id:
+                    target_session = current_session
+                else:
+                    # 在历史记录中查找会话
+                    history = self.user_session_history.get(user_id, [])
+                    for session_info in history:
+                        if session_info.get("session_id") == session_id:
+                            # 历史会话中没有存储路径信息，返回默认路径
+                            return config.OPENCODE_DIRECTORY or "C:/"
+            
+            # 如果没有指定session_id或未找到，使用当前会话
+            if not target_session:
+                target_session = self.user_sessions.get(user_id)
+            
+            if not target_session:
+                return None
+            
+            return target_session.directory
     
     def delete_user_session(self, user_id: int) -> bool:
         """
@@ -453,6 +641,83 @@ class SessionManager:
         with self.lock:
             return self.user_configs.get(user_id)
     
+    def set_user_password(self, user_id: int, password: str) -> bool:
+        """设置用户密码（bcrypt哈希）
+        
+        Args:
+            user_id: 用户ID
+            password: 明文密码（最小6位）
+            
+        Returns:
+            是否成功设置
+        """
+        if len(password) < 6:
+            logger.warning(f"密码长度不足6位: user_id={user_id}")
+            return False
+        
+        try:
+            import bcrypt
+            # 生成bcrypt哈希
+            salt = bcrypt.gensalt()
+            hashed = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+            
+            with self.lock:
+                config_obj = self.user_configs.get(user_id)
+                if not config_obj:
+                    config_obj = UserConfig(user_id=user_id)
+                    self.user_configs[user_id] = config_obj
+                
+                config_obj.password = hashed
+                self.save_to_file()
+                
+            logger.info(f"用户密码已设置: user_id={user_id}")
+            return True
+            
+        except ImportError:
+            logger.error("bcrypt模块未安装，无法设置密码")
+            return False
+        except Exception as e:
+            logger.error(f"设置密码失败: {e}")
+            return False
+    
+    def verify_user_password(self, user_id: int, password: str) -> bool:
+        """验证用户密码
+        
+        Args:
+            user_id: 用户ID
+            password: 明文密码
+            
+        Returns:
+            密码是否正确
+        """
+        with self.lock:
+            config_obj = self.user_configs.get(user_id)
+            if not config_obj or not config_obj.password:
+                return False
+            
+            try:
+                import bcrypt
+                return bcrypt.checkpw(password.encode('utf-8'), config_obj.password.encode('utf-8'))
+            except ImportError:
+                logger.error("bcrypt模块未安装，无法验证密码")
+                return False
+            except Exception as e:
+                logger.error(f"验证密码失败: {e}")
+                return False
+    
+    def user_has_password(self, user_id: int) -> bool:
+        """检查用户是否设置了密码
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            是否设置了密码
+        """
+        with self.lock:
+            config_obj = self.user_configs.get(user_id)
+            return config_obj is not None and bool(config_obj.password)
+    
     def get_all_users(self) -> List[int]:
         """获取所有有会话的用户ID"""
         with self.lock:
@@ -512,10 +777,18 @@ class SessionManager:
                 target_session_info["last_accessed"] = time.time()
                 logger.debug(f"更新会话最后访问时间：用户={user_id}, 会话={target_session_id}")
             
-            # 获取当前会话
+# 获取当前会话
             current_session = self.user_sessions.get(user_id)
             
             # 创建新的会话对象
+            # 确定目录：优先使用目标会话历史记录中的目录，否则使用当前会话目录，最后使用默认目录
+            directory = target_session_info.get("directory") if target_session_info else None
+            if not directory:
+                if current_session:
+                    directory = current_session.directory
+                else:
+                    directory = config.OPENCODE_DIRECTORY or "C:/"
+            
             new_session = UserSession(
                 user_id=user_id,
                 session_id=target_session_id,
@@ -523,6 +796,7 @@ class SessionManager:
                 agent=current_session.agent if current_session else config.OPENCODE_DEFAULT_AGENT,
                 model=current_session.model if current_session else config.OPENCODE_DEFAULT_MODEL,
                 provider=current_session.provider if current_session else config.OPENCODE_DEFAULT_PROVIDER,
+                directory=directory,
                 created_at=float(target_session_info.get("created_at", time.time())),
                 last_accessed=time.time()
             )
@@ -631,11 +905,14 @@ class SessionManager:
                     try:
                         session = UserSession.from_dict(session_data)
                         
-                        # 转换旧的模型格式：deepseek/deepseek-chat -> deepseek-chat
-                        # 转换旧的模型格式：deepseek/deepseek-reasoner -> deepseek-reasoner
-                        if session.model and session.model.startswith("deepseek/deepseek-"):
+                        # 统一模型格式：只存储模型名称，不包含供应商前缀
+                        if session.model and "/" in session.model:
                             old_model = session.model
-                            session.model = session.model.replace("deepseek/deepseek-", "deepseek-")
+                            parts = session.model.split("/", 1)
+                            session.model = parts[1]
+                            # 如果 session.provider 为空，使用提取的值
+                            if not session.provider:
+                                session.provider = parts[0]
                             logger.info(f"转换会话模型格式: 用户={session.user_id}, {old_model} -> {session.model}")
                         
                         self.user_sessions[session.user_id] = session
@@ -648,26 +925,20 @@ class SessionManager:
                     try:
                         config_obj = UserConfig.from_dict(config_data)
                         
-                        # 转换模型格式以确保一致性
-                        # 1. 将简短的deepseek模型转换为完整格式（向后兼容）
-                        # 2. 确保所有模型使用供应商/模型格式
+                        # 统一模型格式：只存储模型名称，不包含供应商前缀
                         if config_obj.model:
                             old_model = config_obj.model
                             
-                            # 如果是简短的deepseek模型，转换为完整格式
-                            if config_obj.model in ["deepseek-chat", "deepseek-reasoner"]:
-                                config_obj.model = f"deepseek/{config_obj.model}"
-                                logger.info(f"转换简短模型格式为完整格式: 用户={config_obj.user_id}, {old_model} -> {config_obj.model}")
-                            # 如果是旧的完整格式（deepseek/deepseek-chat），转换为正确格式（deepseek/deepseek-chat保持不变）
-                            elif config_obj.model.startswith("deepseek/deepseek-"):
-                                # 已经是对的正确格式，无需转换
-                                pass
-                            # 检查是否需要添加供应商前缀
-                            elif "/" not in config_obj.model:
-                                # 没有供应商前缀，默认为opencode
-                                if not config_obj.model.startswith("opencode/"):
-                                    config_obj.model = f"opencode/{config_obj.model}"
-                                    logger.info(f"添加默认供应商前缀: 用户={config_obj.user_id}, {old_model} -> {config_obj.model}")
+                            # 如果模型包含供应商前缀，分离出来
+                            if "/" in config_obj.model:
+                                parts = config_obj.model.split("/", 1)
+                                extracted_provider = parts[0]
+                                extracted_model = parts[1]
+                                config_obj.model = extracted_model
+                                # 如果 provider 为空，使用提取的值
+                                if not config_obj.provider:
+                                    config_obj.provider = extracted_provider
+                                logger.info(f"分离模型前缀: 用户={config_obj.user_id}, {old_model} -> model={extracted_model}, provider={extracted_provider}")
                         
                         self.user_configs[config_obj.user_id] = config_obj
                     except Exception as e:
@@ -699,6 +970,33 @@ class SessionManager:
                                 # 新格式：字典
                                 converted_history.append(item)
                         self.user_session_history[user_id] = converted_history
+                
+                # 如果JSON中没有user_session_history或为空，从user_sessions数组初始化
+                if not self.user_session_history:
+                    # 从JSON数组按user_id分组
+                    for session_data in data.get("user_sessions", []):
+                        user_id = session_data.get("user_id")
+                        if user_id is None:
+                            continue
+                        # 转换user_id为整数
+                        if isinstance(user_id, str):
+                            try:
+                                user_id = int(user_id)
+                            except ValueError:
+                                pass
+                        
+                        if user_id not in self.user_session_history:
+                            self.user_session_history[user_id] = []
+                        
+                        self.user_session_history[user_id].append({
+                            "session_id": session_data.get("session_id"),
+                            "title": session_data.get("title", f"QQ用户_{user_id}_会话"),
+                            "created_at": session_data.get("created_at", time.time()),
+                            "last_accessed": session_data.get("last_accessed"),
+                            "agent": session_data.get("agent"),
+                            "model": session_data.get("model")
+                        })
+                    logger.info(f"从user_sessions数组初始化了 {len(self.user_session_history)} 个用户的历史记录")
 
             
             logger.info(f"从文件加载数据成功: {self.file_path}")

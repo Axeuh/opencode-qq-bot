@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>OpenCode Web Console</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Markdown解析和代码高亮 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <style>
         /* === 变量与全局设置 === */
         :root {
@@ -839,6 +843,228 @@
             }
         }
 
+        /* === Markdown 样式 === */
+        .markdown-content {
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+        
+        /* 标题样式 */
+        .markdown-content h1 {
+            font-size: 1.6em;
+            font-weight: 700;
+            margin: 1em 0 0.5em;
+            padding-bottom: 0.3em;
+            border-bottom: 2px solid var(--primary-blue);
+            color: #2c3e50;
+        }
+        .markdown-content h2 {
+            font-size: 1.4em;
+            font-weight: 600;
+            margin: 0.8em 0 0.4em;
+            padding-bottom: 0.2em;
+            border-bottom: 1px solid #e1e4e8;
+            color: #2c3e50;
+        }
+        .markdown-content h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin: 0.6em 0 0.3em;
+            color: #2c3e50;
+        }
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            font-size: 1em;
+            font-weight: 600;
+            margin: 0.5em 0 0.2em;
+            color: #2c3e50;
+        }
+        
+        /* 段落 */
+        .markdown-content p {
+            margin: 0.5em 0;
+        }
+        
+        /* 链接 */
+        .markdown-content a {
+            color: var(--primary-blue-hover);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--primary-blue);
+        }
+        .markdown-content a:hover {
+            color: #4a90d9;
+            border-bottom-style: solid;
+        }
+        
+        /* 引用块 */
+        .markdown-content blockquote {
+            margin: 0.8em 0;
+            padding: 0.5em 1em;
+            border-left: 4px solid var(--primary-blue);
+            background: #f8fafc;
+            border-radius: 0 8px 8px 0;
+            color: #666;
+        }
+        .markdown-content blockquote p {
+            margin: 0.3em 0;
+        }
+        
+        /* 列表 */
+        .markdown-content ul, .markdown-content ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        .markdown-content li {
+            margin: 0.3em 0;
+        }
+        .markdown-content ul li {
+            list-style-type: disc;
+        }
+        .markdown-content ol li {
+            list-style-type: decimal;
+        }
+        .markdown-content ul ul, .markdown-content ol ol, .markdown-content ul ol, .markdown-content ol ul {
+            margin: 0.2em 0;
+        }
+        
+        /* 表格 */
+        .markdown-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.8em 0;
+            font-size: 0.9em;
+            overflow-x: auto;
+            display: block;
+        }
+        .markdown-content thead {
+            background: #f1f5f9;
+        }
+        .markdown-content th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #e2e8f0;
+            color: #334155;
+        }
+        .markdown-content td {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .markdown-content tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        .markdown-content tr:hover {
+            background: #f1f5f9;
+        }
+        
+        /* 代码块 */
+        .markdown-content pre {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 0.8em 0;
+            overflow-x: auto;
+            position: relative;
+            border: 1px solid #e2e8f0;
+        }
+        .markdown-content pre code {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #1e293b;
+            background: transparent;
+            padding: 0;
+        }
+        
+        /* 行内代码 */
+        .markdown-content code {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            background: #f1f5f9;
+            color: #be185d;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        /* 分隔线 */
+        .markdown-content hr {
+            border: none;
+            border-top: 2px solid #e2e8f0;
+            margin: 1.5em 0;
+        }
+        
+        /* 图片 */
+        .markdown-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 0.5em 0;
+        }
+        
+        /* 任务列表 */
+        .markdown-content input[type="checkbox"] {
+            margin-right: 6px;
+        }
+
+        /* === 文件预览区域 === */
+        .file-preview-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .file-preview-card {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .file-preview-card img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .file-preview-card .file-info {
+            flex: 1;
+        }
+        .file-preview-card .file-name {
+            font-size: 13px;
+            color: #333;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-preview-card .file-size {
+            font-size: 11px;
+            color: #999;
+        }
+        .file-preview-card .remove-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: #fee2e2;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #dc2626;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .file-preview-card .remove-btn:hover {
+            background: #fecaca;
+        }
+        .input-area.drag-over {
+            border: 2px dashed #3b82f6;
+            background: #eff6ff;
+        }
+
     </style>
 </head>
 <body>
@@ -872,6 +1098,7 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <div class="message-header-title" id="messageTitle">请选择会话</div>
+                    <span class="session-path-header" id="sessionPathHeader" style="display: none; margin-left: 12px; font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; cursor: pointer;" title="点击编辑路径"></span>
                 </div>
                 <div class="message-header-right" style="display: flex; align-items: center; gap: 12px;">
                     <div class="token-info" id="tokenInfo" style="font-size: 12px; color: var(--text-sub);">
@@ -922,6 +1149,10 @@
                 </div>
             </div>
 
+            <div id="filePreviewArea" class="file-preview-area" style="display:none;">
+                <!-- 文件预览卡片会动态添加到这里 -->
+            </div>
+
             <div class="input-row">
                 <textarea class="msg-input" id="chatInput" placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" disabled></textarea>
                 <button class="send-btn" id="sendBtn" title="发送 (Enter)" disabled><i class="fas fa-paper-plane"></i></button>
@@ -941,12 +1172,67 @@
                     <label>QQ 号</label>
                     <input type="text" class="form-input" id="loginQQ" placeholder="请输入您的 QQ 号">
                 </div>
+                <div class="form-group" id="passwordGroup">
+                    <label>密码</label>
+                    <input type="password" class="form-input" id="loginPassword" placeholder="请输入密码">
+                </div>
                 <button class="btn btn-save" style="width:100%;margin-top:16px;" onclick="handleLogin()">登录</button>
             </div>
         </div>
     </div>
 
-    <!-- 设置弹窗 -->
+    <!-- 设置密码弹窗 -->
+    <div class="modal-overlay" id="setPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">设置密码</div>
+                <button class="close-btn" onclick="document.getElementById('setPasswordModal').style.display='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px;color:#666;margin-bottom:16px;">首次登录需要设置密码，密码长度至少6位</p>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" class="form-input" id="newPassword" placeholder="请输入新密码（至少6位）">
+                </div>
+                <div class="form-group">
+                    <label>确认密码</label>
+                    <input type="password" class="form-input" id="confirmPassword" placeholder="请再次输入密码">
+                </div>
+                <button class="btn btn-save" style="width:100%;margin-top:16px;" onclick="handleSetPassword()">确认设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div class="modal-overlay" id="changePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">修改密码</div>
+                <button class="close-btn" onclick="document.getElementById('changePasswordModal').style.display='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>原密码</label>
+                    <input type="password" class="form-input" id="oldPassword" placeholder="请输入原密码">
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" class="form-input" id="changeNewPassword" placeholder="请输入新密码（至少6位）">
+                </div>
+                <div class="form-group">
+                    <label>确认新密码</label>
+                    <input type="password" class="form-input" id="changeConfirmPassword" placeholder="请再次输入新密码">
+                </div>
+                <button class="btn btn-save" style="width:100%;margin-top:16px;" onclick="handleChangePassword()">确认修改</button>
+            </div>
+        </div>
+    </div>
+
+<!-- 设置弹窗 -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -964,12 +1250,15 @@
                     <label>工作目录</label>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <i class="fas fa-folder-open" style="color: var(--primary);"></i>
-                        <input type="text" class="form-input" id="workPath" value="C:\\" title="当前工作目录" style="flex: 1;">
+                        <input type="text" class="form-input" id="workPath" value="C:\" title="当前工作目录" style="flex: 1;">
                     </div>
                 </div>
+                <button class="btn btn-save" style="width:100%;margin-top:8px;" onclick="document.getElementById('settingsModal').style.display='none';document.getElementById('changePasswordModal').style.display='flex';">
+                    <i class="fas fa-key" style="margin-right:8px;"></i>修改密码
+                </button>
                 <button class="logout-btn" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
             </div>
-            <div class="modal-footer">
+<div class="modal-footer">
                 <button class="btn btn-cancel" onclick="document.getElementById('settingsModal').style.display='none'">关闭</button>
             </div>
         </div>
@@ -985,6 +1274,11 @@
             currentSession: null,   // 当前会话 {id, title, ...}
             selectedModel: null,    // 选中的模型
             selectedAgent: null,    // 选中的智能体
+            userConfig: {           // 用户配置
+                model: null,
+                agent: null,
+                provider: null
+            },
             models: [],             // 模型列表
             agents: [],             // 智能体列表
             sessions: [],           // 会话列表
@@ -1000,7 +1294,9 @@
             userAtBottom: true,     // 用户是否在消息流底部
             // 渲染优化
             renderPending: false,   // 是否有待渲染
-            lastRenderTime: 0       // 上次渲染时间戳
+            lastRenderTime: 0,      // 上次渲染时间戳
+            // 文件上传
+            pendingFiles: []        // 待上传的文件列表 [{file, preview, type}]
         };
 
         // =====================================================
@@ -1008,24 +1304,84 @@
         // =====================================================
         const API_BASE = '';  // 同源，无需前缀
 
+        // 获取认证token
+        function getAuthToken() {
+            return localStorage.getItem('sessionToken') || '';
+        }
+
         async function apiGet(url) {
-            const res = await fetch(url);
+            const token = getAuthToken();
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const res = await fetch(url, { headers });
+            if (res.status === 401) {
+                // Token过期，需要重新登录
+                localStorage.removeItem('sessionToken');
+                localStorage.removeItem('userQQ');
+                location.reload();
+                throw new Error('会话已过期，请重新登录');
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
         }
 
         async function apiPost(url, body) {
+            const token = getAuthToken();
+            const headers = {'Content-Type': 'application/json'};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             const res = await fetch(url, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers,
                 body: JSON.stringify(body)
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
+            if (res.status === 401) {
+                // Token过期，需要重新登录
+                localStorage.removeItem('sessionToken');
+                localStorage.removeItem('userQQ');
+                location.reload();
+                throw new Error('会话已过期，请重新登录');
+            }
+            if (!res.ok) {
+                // 尝试解析错误信息
+                let errorMsg = `HTTP ${res.status}`;
+                try {
+                    const errorData = await res.json();
+                    errorMsg = errorData.error || errorData.message || errorMsg;
+                } catch (e) {
+                    // 无法解析JSON，使用默认错误信息
+                }
+                throw new Error(errorMsg);
+            }
+            // 检查响应是否为空
+            const text = await res.text();
+            if (!text || text.trim() === '') {
+                return {success: true};  // 空响应视为成功
+            }
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.warn('API响应不是有效JSON:', text);
+                return {success: true, raw: text};
+            }
         }
 
         async function apiDelete(url) {
-            const res = await fetch(url, {method: 'DELETE'});
+            const token = getAuthToken();
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const res = await fetch(url, {method: 'DELETE', headers});
+            if (res.status === 401) {
+                localStorage.removeItem('sessionToken');
+                localStorage.removeItem('userQQ');
+                location.reload();
+                throw new Error('会话已过期，请重新登录');
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
         }
@@ -1033,10 +1389,15 @@
         // =====================================================
         // 登录功能
         // =====================================================
+        let pendingQQ = null; // 待设置密码的QQ号
+        
         async function handleLogin() {
             const qqInput = document.getElementById('loginQQ');
+            const passwordInput = document.getElementById('loginPassword');
+            const passwordGroup = document.getElementById('passwordGroup');
             const loginBtn = document.querySelector('#loginModal .btn-save');
             const qq = qqInput.value.trim();
+            const password = passwordInput.value;
             
             if (!qq) {
                 alert('请输入 QQ 号');
@@ -1057,35 +1418,174 @@
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ qq_id: qq })
+                    body: JSON.stringify({ qq_id: qq, password: password })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
+                    // 登录成功
                     localStorage.setItem('userQQ', qq);
+                    // 存储session token
+                    if (result.token) {
+                        localStorage.setItem('sessionToken', result.token);
+                    }
                     AppState.userQQ = qq;
                     AppState.userName = qq;
                     
                     document.getElementById('loginModal').style.display = 'none';
                     updateUserName(qq);
                     
+                    // 重置登录表单
+                    passwordInput.value = '';
+                    loginBtn.textContent = '登录';
+                    
                     // 初始化应用
                     initApp();
+                } else if (result.need_set_password) {
+                    // 需要设置密码
+                    pendingQQ = qq;
+                    document.getElementById('loginModal').style.display = 'none';
+                    document.getElementById('setPasswordModal').style.display = 'flex';
+                    loginBtn.textContent = '登录';
+                } else if (result.need_password) {
+                    // 需要输入密码
+                    loginBtn.textContent = '登录';
+                    if (result.error) {
+                        alert(result.error);
+                    }
                 } else {
                     alert(result.error || '登录失败');
+                    loginBtn.textContent = '登录';
                 }
             } catch (error) {
                 console.error('登录请求失败:', error);
                 alert('网络错误，请稍后重试');
+                loginBtn.textContent = '登录';
             } finally {
                 loginBtn.disabled = false;
-                loginBtn.textContent = '登录';
+            }
+        }
+        
+        async function handleSetPassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const setBtn = document.querySelector('#setPasswordModal .btn-save');
+            
+            if (!newPassword || newPassword.length < 6) {
+                alert('密码长度至少6位');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的密码不一致');
+                return;
+            }
+            
+            setBtn.disabled = true;
+            setBtn.textContent = '设置中...';
+            
+            try {
+                const response = await fetch('/api/password/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qq_id: pendingQQ, password: newPassword })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 存储session token
+                    if (result.token) {
+                        localStorage.setItem('sessionToken', result.token);
+                        localStorage.setItem('userQQ', pendingQQ);
+                        AppState.userQQ = pendingQQ;
+                        AppState.userName = pendingQQ;
+                    }
+                    
+                    document.getElementById('setPasswordModal').style.display = 'none';
+                    
+                    // 清空密码输入
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                    
+                    updateUserName(pendingQQ);
+                    pendingQQ = null;
+                    
+                    // 初始化应用
+                    initApp();
+                } else {
+                    alert(result.error || '设置密码失败');
+                }
+            } catch (error) {
+                console.error('设置密码失败:', error);
+                alert('网络错误，请稍后重试');
+            } finally {
+                setBtn.disabled = false;
+                setBtn.textContent = '确认设置';
+            }
+        }
+        
+        async function handleChangePassword() {
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('changeNewPassword').value;
+            const confirmPassword = document.getElementById('changeConfirmPassword').value;
+            const changeBtn = document.querySelector('#changePasswordModal .btn-save');
+            
+            if (!oldPassword) {
+                alert('请输入原密码');
+                return;
+            }
+            
+            if (!newPassword || newPassword.length < 6) {
+                alert('新密码长度至少6位');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的新密码不一致');
+                return;
+            }
+            
+            changeBtn.disabled = true;
+            changeBtn.textContent = '修改中...';
+            
+            try {
+                const response = await fetch('/api/password/change', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        qq_id: AppState.userQQ, 
+                        old_password: oldPassword, 
+                        new_password: newPassword 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('密码修改成功');
+                    document.getElementById('changePasswordModal').style.display = 'none';
+                    
+                    // 清空密码输入
+                    document.getElementById('oldPassword').value = '';
+                    document.getElementById('changeNewPassword').value = '';
+                    document.getElementById('changeConfirmPassword').value = '';
+                } else {
+                    alert(result.error || '修改密码失败');
+                }
+            } catch (error) {
+                console.error('修改密码失败:', error);
+                alert('网络错误，请稍后重试');
+            } finally {
+                changeBtn.disabled = false;
+                changeBtn.textContent = '确认修改';
             }
         }
 
         function handleLogout() {
             localStorage.removeItem('userQQ');
+            localStorage.removeItem('sessionToken');
             AppState.userQQ = null;
             AppState.currentSession = null;
             
@@ -1249,7 +1749,7 @@
                     preview = preview.replace(/^\[QQ用户[^}\]]*\}\s*/, '').substring(0, 30);
                 }
                 if (!preview) preview = '暂无消息';
-                
+
                 item.innerHTML = `
                     <div class="session-header">
                         <span class="session-title">${escapeHtml(session.title || '新会话')}</span>
@@ -1337,6 +1837,26 @@
             document.querySelectorAll('.session-item').forEach(item => {
                 item.classList.toggle('active', item.dataset.sessionId === sessionId);
             });
+            
+            // 切换后端的当前会话（确保前后端状态同步）
+            try {
+                await apiPost('/api/session/switch', { user_id: AppState.userQQ, session_id: sessionId });
+            } catch (e) {
+                console.warn('切换后端会话失败:', e);
+            }
+            
+            // 获取当前会话的路径
+            try {
+                const pathResult = await apiPost('/api/directory/get', { user_id: AppState.userQQ });
+                if (pathResult && pathResult.success) {
+                    AppState.currentSession.directory = pathResult.directory || '';
+                }
+            } catch (e) {
+                console.log('获取会话路径失败:', e);
+            }
+            
+            // 更新会话标题栏的路径显示
+            updateSessionPathHeader();
             
             // 启用输入
             document.getElementById('chatInput').disabled = false;
@@ -1768,43 +2288,89 @@
                     </div>
                 `;
             } else if (toolName === 'edit') {
-                // edit工具：默认展开，显示diff（重复行合并显示为白色）
+                // edit工具：默认展开，显示diff
                 card.classList.add('expanded');
                 const filePath = input.filePath || input.file_path || input.path || '';
                 const oldString = input.oldString || input.old_string || '';
                 const newString = input.newString || input.new_string || '';
                 const displayPath = filePath.length > 40 ? '...' + filePath.slice(-37) : filePath;
                 
-                // 生成智能diff显示
+                // 生成合并diff显示 - 类似git diff
                 let diffHtml = '';
                 const oldLines = oldString.split('\n');
                 const newLines = newString.split('\n');
                 
                 // 简单的LCS diff算法
-                const oldSet = new Set(oldLines);
-                const newSet = new Set(newLines);
-                
-                // 先显示删除的行（红色）
-                oldLines.forEach((line, i) => {
-                    if (!newSet.has(line)) {
-                        diffHtml += `<div class="diff-line diff-del"><div class="diff-num">${i + 1}</div><div class="diff-code">-${escapeHtml(line)}</div></div>`;
+                function computeDiff(oldArr, newArr) {
+                    const result = [];
+                    let oldIdx = 0;
+                    let newIdx = 0;
+                    
+                    // 构建LCS矩阵
+                    const lcs = [];
+                    for (let i = 0; i <= oldArr.length; i++) {
+                        lcs[i] = [];
+                        for (let j = 0; j <= newArr.length; j++) {
+                            if (i === 0 || j === 0) {
+                                lcs[i][j] = 0;
+                            } else if (oldArr[i - 1] === newArr[j - 1]) {
+                                lcs[i][j] = lcs[i - 1][j - 1] + 1;
+                            } else {
+                                lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+                            }
+                        }
                     }
-                });
-                
-                // 再显示新增的行（绿色）
-                const startLine = oldLines.length;
-                newLines.forEach((line, i) => {
-                    if (!oldSet.has(line)) {
-                        diffHtml += `<div class="diff-line diff-add"><div class="diff-num">${startLine + i}</div><div class="diff-code">+${escapeHtml(line)}</div></div>`;
+                    
+                    // 回溯生成diff
+                    let i = oldArr.length;
+                    let j = newArr.length;
+                    const diff = [];
+                    
+                    while (i > 0 || j > 0) {
+                        if (i > 0 && j > 0 && oldArr[i - 1] === newArr[j - 1]) {
+                            diff.unshift({ type: 'equal', oldLine: i, newLine: j, text: oldArr[i - 1] });
+                            i--;
+                            j--;
+                        } else if (j > 0 && (i === 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
+                            diff.unshift({ type: 'add', newLine: j, text: newArr[j - 1] });
+                            j--;
+                        } else if (i > 0) {
+                            diff.unshift({ type: 'del', oldLine: i, text: oldArr[i - 1] });
+                            i--;
+                        }
                     }
-                });
-                
-                // 如果没有差异，显示所有行（白色表示未改变）
-                if (!diffHtml) {
-                    newLines.forEach((line, i) => {
-                        diffHtml += `<div class="diff-line" style="background:#fff;"><div class="diff-num" style="color:#999;">${i + 1}</div><div class="diff-code" style="color:#666;"> ${escapeHtml(line)}</div></div>`;
-                    });
+                    
+                    return diff;
                 }
+                
+                const diffResult = computeDiff(oldLines, newLines);
+                
+                // 统计变更
+                let delCount = 0;
+                let addCount = 0;
+                diffResult.forEach(item => {
+                    if (item.type === 'del') delCount++;
+                    if (item.type === 'add') addCount++;
+                });
+                
+                // 渲染diff
+                diffHtml += `<div style="color:#666;font-size:11px;margin-bottom:8px;">`;
+                if (delCount > 0) diffHtml += `<span style="color:#dc3545;">-${delCount}</span> `;
+                if (addCount > 0) diffHtml += `<span style="color:#28a745;">+${addCount}</span>`;
+                diffHtml += `</div>`;
+                
+                diffResult.forEach(item => {
+                    if (item.type === 'equal') {
+                        // 未改变的行：白色/灰色
+                        diffHtml += `<div class="diff-line" style="background:#fff;"><div class="diff-num" style="color:#999;">${item.oldLine}</div><div class="diff-code" style="color:#666;"> ${escapeHtml(item.text)}</div></div>`;
+                    } else if (item.type === 'del') {
+                        // 删除的行：红色
+                        diffHtml += `<div class="diff-line diff-del"><div class="diff-num">${item.oldLine}</div><div class="diff-code">-${escapeHtml(item.text)}</div></div>`;
+                    } else if (item.type === 'add') {
+                        // 新增的行：绿色
+                        diffHtml += `<div class="diff-line diff-add"><div class="diff-num">${item.newLine}</div><div class="diff-code">+${escapeHtml(item.text)}</div></div>`;
+                    }
+                });
                 
                 card.innerHTML = `
                     <div class="tool-header" onclick="toggleTool(this)" title="${escapeHtml(filePath)}">
@@ -1899,9 +2465,11 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                         </div>
                     `;
                 } else {
-                    // 其他MCP工具：通用样式
-                    card.classList.add('expanded');
+                    // 其他MCP工具：默认折叠，标题显示name
                     const displayArgs = args.params || args;
+                    
+                    // 从arguments中提取name字段
+                    const toolName2 = displayArgs.name || toolInput || 'MCP工具';
                     
                     // 状态图标
                     let statusIcon = 'fa-spinner fa-spin';
@@ -1916,7 +2484,7 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                     
                     card.innerHTML = `
                         <div class="tool-header" onclick="toggleTool(this)">
-                            <div><i class="fas fa-plug tool-icon" style="color:#6366f1;"></i>${mcpName || 'MCP'}: ${toolInput} <i class="fas ${statusIcon}" style="color:${statusColor};font-size:12px;margin-left:8px;"></i></div>
+                            <div><i class="fas fa-plug tool-icon" style="color:#6366f1;"></i>skill · name: "${escapeHtml(toolName2)}" <i class="fas ${statusIcon}" style="color:${statusColor};font-size:12px;margin-left:8px;"></i></div>
                             <i class="fas fa-chevron-down tool-toggle-icon"></i>
                         </div>
                         <div class="tool-body">
@@ -2044,9 +2612,10 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
 
         async function sendMessage() {
             const input = document.getElementById('chatInput');
-            const content = input.value.trim();
+            let content = input.value.trim();
             
-            if (!content || !AppState.currentSession) return;
+            if (!AppState.currentSession) return;
+            if (!content && AppState.pendingFiles.length === 0) return;
             
             const sessionId = AppState.currentSession.id;
             
@@ -2059,6 +2628,34 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
             sendBtn.disabled = true;
             AppState.isStreaming = true;
             AppState.reasoningPartIds.clear(); // 清空reasoning追踪
+            
+            // 上传文件并收集路径
+            const uploadedFiles = [];
+            for (const pf of AppState.pendingFiles) {
+                try {
+                    const result = await uploadFile(pf.file);
+                    if (result.success) {
+                        uploadedFiles.push(result);
+                        console.log('[上传] 文件上传成功:', result.file_name);
+                    } else {
+                        console.error('[上传] 文件上传失败:', result.error);
+                    }
+                } catch (e) {
+                    console.error('[上传] 上传失败:', e);
+                }
+            }
+            
+            // 清空待上传列表
+            AppState.pendingFiles = [];
+            renderFilePreview();
+            
+            // 构建消息内容（包含文件路径）
+            if (uploadedFiles.length > 0) {
+                content += '\n\n[上传的文件]\n';
+                uploadedFiles.forEach(f => {
+                    content += `- ${f.file_name}: ${f.absolute_path}\n`;
+                });
+            }
             
             // 初始化state
             if (!AppState.messages[sessionId]) {
@@ -2089,7 +2686,7 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
             };
             
             // 更新session的last_message
-            const session = AppState.sessions.find(s => s.id === sessionId);
+            const session = AppState.sessions.find(s => (s.session_id || s.id) === sessionId);
             if (session) {
                 session.last_message = content.substring(0, 30);
             }
@@ -2175,7 +2772,11 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
                 AppState.eventSource.close();
             }
             
-            AppState.eventSource = new EventSource('/api/opencode/events');
+            // 通过URL参数传递token
+            const token = getAuthToken();
+            const sseUrl = token ? `/api/opencode/events?token=${encodeURIComponent(token)}` : '/api/opencode/events';
+            
+            AppState.eventSource = new EventSource(sseUrl);
             
             AppState.eventSource.onmessage = (event) => {
                 try {
@@ -2331,7 +2932,7 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
 case 'message.updated':
                     // 消息更新 - 从 props.info 获取消息信息
                     const info = props.info || {};
-                    const msgSessionId = info.sessionID;
+                    const msgSessionId = info.sessionID || AppState.currentSession?.id;  // 使用当前会话ID作为后备
                     const msgId = info.id;
                     const msgRole = info.role;
                     
@@ -2405,7 +3006,7 @@ case 'message.updated':
                         AppState.currentMessageID = msgId;
                         
                         // 更新session的last_message、tokens和时间
-                        const session = AppState.sessions.find(s => s.id === msgSessionId);
+                        const session = AppState.sessions.find(s => (s.session_id || s.id) === msgSessionId);
                         if (session) {
                             // 从parts获取最后一条消息的文本
                             const parts = AppState.parts[msgSessionId] || {};
@@ -2464,11 +3065,24 @@ case 'message.updated':
                     // 会话更新 - 只更新特定会话
                     const updatedSessionId = props.sessionID || props.id;
                     if (updatedSessionId) {
-                        const session = AppState.sessions.find(s => s.id === updatedSessionId);
+                        const session = AppState.sessions.find(s => (s.session_id || s.id) === updatedSessionId);
                         if (session && props.title) {
                             session.title = props.title;
                             session.updated_at = props.updated_at || Date.now();
                             renderSessions();
+                        }
+                    }
+                    break;
+                    
+                case 'session.diff':
+                    // 会话差异更新（包括directory等）
+                    const diffSessionId = props.sessionID || props.id;
+                    if (diffSessionId && AppState.currentSession && 
+                        (AppState.currentSession.id === diffSessionId || AppState.currentSession.session_id === diffSessionId)) {
+                        // 更新当前会话的属性
+                        if (props.directory !== undefined) {
+                            AppState.currentSession.directory = props.directory;
+                            updateSessionPathHeader();
                         }
                     }
                     break;
@@ -2500,64 +3114,68 @@ case 'message.updated':
         // 配置选择
         // =====================================================
         
-        // 从config.yaml获取的配置（硬编码，与config.yaml保持一致）
-        const CONFIG_MODELS = [
-            "opencode/big-pickle",
-            "opencode/gpt-5-nano",
-            "opencode/minimax-m2.5-free",
-            "opencode/trinity-large-preview-free",
-            "deepseek/deepseek-chat",
-            "deepseek/deepseek-reasoner",
-            "alibaba-coding-plan-cn/qwen3.5-plus",
-            "alibaba-coding-plan-cn/qwen3-max-2026-01-23",
-            "alibaba-coding-plan-cn/qwen3-coder-next",
-            "alibaba-coding-plan-cn/qwen3-coder-plus",
-            "alibaba-coding-plan-cn/glm-5",
-            "alibaba-coding-plan-cn/glm-4.7",
-            "alibaba-coding-plan-cn/kimi-k2.5",
-            "alibaba-coding-plan-cn/minimax-m2.5"
-        ];
-        
-        const CONFIG_AGENTS = [
-            "Sisyphus (Ultraworker)",
-            "Prometheus",
-            "Atlas"
-        ];
-        
-        const CONFIG_DEFAULT_MODEL = "alibaba-coding-plan-cn/glm-5";
-        const CONFIG_DEFAULT_AGENT = "Sisyphus (Ultraworker)";
+        // 默认值（当API获取失败时使用）
+        const CONFIG_DEFAULT_MODEL = "";
+        const CONFIG_DEFAULT_AGENT = "";
         
         async function loadModels() {
             try {
-                // 使用config.yaml中的模型列表
-                AppState.models = CONFIG_MODELS.map(id => {
-                    const parts = id.split('/');
-                    const modelId = parts.slice(1).join('/');
-                    const provider = parts[0];
-                    return {
-                        id: id,
-                        name: modelId || id,
-                        provider: provider
-                    };
-                });
-                console.log('加载模型列表:', AppState.models.length, '个');
+                // 从API动态获取模型列表
+                const result = await apiGet('/api/models');
+                if (result && result.success && Array.isArray(result.models)) {
+                    AppState.models = result.models.map(id => {
+                        const parts = id.split('/');
+                        const modelId = parts.slice(1).join('/');
+                        const provider = parts[0];
+                        return {
+                            id: id,
+                            name: modelId || id,
+                            provider: provider
+                        };
+                    });
+                    console.log('从API加载模型列表:', AppState.models.length, '个');
+                } else {
+                    AppState.models = [];
+                    console.warn('API返回模型列表为空');
+                }
                 renderModelSelect();
             } catch (error) {
                 console.error('加载模型列表失败:', error);
+                AppState.models = [];
+                renderModelSelect();
             }
         }
         
         async function loadAgents() {
             try {
-                // 使用config.yaml中的智能体列表
-                AppState.agents = CONFIG_AGENTS.map(name => ({
-                    id: name,
-                    name: name
-                }));
-                console.log('加载智能体列表:', AppState.agents.length, '个');
+                // 从API动态获取智能体列表
+                const result = await apiGet('/api/agents');
+                if (result && result.success && Array.isArray(result.agents)) {
+                    // 后端返回的是 [{id, name}] 对象列表
+                    AppState.agents = result.agents.map(agent => {
+                        if (typeof agent === 'object' && agent !== null) {
+                            return {
+                                id: agent.id || agent.name || agent,
+                                name: agent.name || agent.id || agent
+                            };
+                        } else {
+                            // 兼容旧格式（字符串）
+                            return {
+                                id: agent,
+                                name: agent
+                            };
+                        }
+                    });
+                    console.log('从API加载智能体列表:', AppState.agents.length, '个', AppState.agents.slice(0, 3));
+                } else {
+                    AppState.agents = [];
+                    console.warn('API返回智能体列表为空');
+                }
                 renderAgentSelect();
             } catch (error) {
                 console.error('加载智能体列表失败:', error);
+                AppState.agents = [];
+                renderAgentSelect();
             }
         }
 
@@ -2566,10 +3184,15 @@ case 'message.updated':
             const selected = document.querySelector('#modelSelect .select-selected');
             const selectedText = selected.querySelector('.select-selected-text');
             
+            // 保存当前选中的模型ID（如果有用户配置则保留）
+            const currentModelId = AppState.userConfig.model || AppState.selectedModel;
+            
             container.innerHTML = '';
             
             if (AppState.models.length === 0) {
                 container.innerHTML = '<div style="padding:8px 12px;color:#999;">暂无可用模型</div>';
+                selectedText.textContent = '无模型';
+                selected.dataset.value = '';
                 return;
             }
             
@@ -2583,22 +3206,35 @@ case 'message.updated':
                     selected.dataset.value = item.dataset.value;
                     AppState.selectedModel = item.dataset.value;
                     container.classList.remove('select-show');
+                    // 保存用户选择到服务器
+                    saveModelSelection(item.dataset.value);
                 });
                 container.appendChild(item);
             });
             
-            // 默认选中配置中的默认值
-            const defaultModel = AppState.models.find(m => m.id === CONFIG_DEFAULT_MODEL);
-            if (defaultModel) {
-                selectedText.textContent = defaultModel.name || defaultModel.id;
-                selected.dataset.value = defaultModel.id;
-                AppState.selectedModel = defaultModel.id;
-            } else if (AppState.models.length > 0) {
-                const first = AppState.models[0];
-                selectedText.textContent = first.name || first.id || first;
-                selected.dataset.value = first.id || first;
-                AppState.selectedModel = first.id || first;
+            // 如果有用户配置的模型，尝试匹配并选中
+            if (currentModelId) {
+                const model = AppState.models.find(m => 
+                    m.id === currentModelId || 
+                    m.id.toLowerCase() === currentModelId.toLowerCase() ||
+                    m.id.endsWith('/' + currentModelId) ||
+                    m.id.toLowerCase().endsWith('/' + currentModelId.toLowerCase()) ||
+                    m.name === currentModelId ||
+                    m.name.toLowerCase() === currentModelId.toLowerCase()
+                );
+                if (model) {
+                    selectedText.textContent = model.name || model.id;
+                    selected.dataset.value = model.id;
+                    AppState.selectedModel = model.id;
+                    console.log('renderModelSelect: 应用用户配置模型:', model.id);
+                    return;  // 成功匹配，不重置
+                }
             }
+            
+            // 没有用户配置或匹配失败，显示默认文本
+            selectedText.textContent = '选择模型';
+            selected.dataset.value = '';
+            AppState.selectedModel = null;
         }
 
         function renderAgentSelect() {
@@ -2606,38 +3242,74 @@ case 'message.updated':
             const selected = document.querySelector('#agentSelect .select-selected');
             const selectedText = selected.querySelector('.select-selected-text');
             
+            // 用户配置中存储的是智能体 ID
+            const currentAgentId = AppState.userConfig.agent || AppState.selectedAgent;
+            
             container.innerHTML = '';
             
             if (AppState.agents.length === 0) {
                 container.innerHTML = '<div style="padding:8px 12px;color:#999;">暂无可用智能体</div>';
+                selectedText.textContent = '无智能体';
+                selected.dataset.value = '';
                 return;
             }
             
             AppState.agents.forEach(agent => {
                 const item = document.createElement('div');
-                item.textContent = agent.name || agent.id || agent;
-                item.dataset.value = agent.id || agent;
+                item.textContent = agent.name || agent.id;
+                item.dataset.value = agent.id;
                 item.addEventListener('click', (e) => {
-                    e.stopPropagation();  // 阻止事件冒泡
+                    e.stopPropagation();
                     selectedText.textContent = item.textContent;
                     selected.dataset.value = item.dataset.value;
                     AppState.selectedAgent = item.dataset.value;
                     container.classList.remove('select-show');
+                    // 保存用户选择到服务器（保存的是 ID）
+                    saveAgentSelection(item.dataset.value);
                 });
                 container.appendChild(item);
             });
             
-            // 默认选中配置中的默认值
-            const defaultAgent = AppState.agents.find(a => a.id === CONFIG_DEFAULT_AGENT);
-            if (defaultAgent) {
-                selectedText.textContent = defaultAgent.name || defaultAgent.id;
-                selected.dataset.value = defaultAgent.id;
-                AppState.selectedAgent = defaultAgent.id;
-            } else if (AppState.agents.length > 0) {
-                const first = AppState.agents[0];
-                selectedText.textContent = first.name || first.id || first;
-                selected.dataset.value = first.id || first;
-                AppState.selectedAgent = first.id || first;
+            // 使用 ID 精确匹配用户配置的智能体
+            if (currentAgentId) {
+                const agent = AppState.agents.find(a => 
+                    a.id === currentAgentId || 
+                    a.id.toLowerCase() === currentAgentId.toLowerCase()
+                );
+                
+                if (agent) {
+                    selectedText.textContent = agent.name || agent.id;
+                    selected.dataset.value = agent.id;
+                    AppState.selectedAgent = agent.id;
+                    return;
+                }
+            }
+            
+            // 没有用户配置或匹配失败，显示默认文本
+            selectedText.textContent = '选择智能体';
+            selected.dataset.value = '';
+            AppState.selectedAgent = null;
+        }
+        
+        // 保存用户选择的模型
+        async function saveModelSelection(modelId) {
+            if (!AppState.userQQ) return;
+            try {
+                await apiPost('/api/model/set', { user_id: AppState.userQQ, model: modelId });
+                console.log('模型选择已保存:', modelId);
+            } catch (error) {
+                console.error('保存模型选择失败:', error);
+            }
+        }
+        
+        // 保存用户选择的智能体
+        async function saveAgentSelection(agentId) {
+            if (!AppState.userQQ) return;
+            try {
+                await apiPost('/api/agents/set', { user_id: AppState.userQQ, agent: agentId });
+                console.log('智能体选择已保存:', agentId);
+            } catch (error) {
+                console.error('保存智能体选择失败:', error);
             }
         }
 
@@ -2671,13 +3343,38 @@ case 'message.updated':
 
         function formatMarkdown(text) {
             if (!text) return '';
-            // 简单的 Markdown 格式化
-            return text
-                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:#f8fafc;padding:12px;border-radius:8px;overflow-x:auto;font-family:monospace;font-size:12px;">$2</pre>')
-                .replace(/`([^`]+)`/g, '<code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;color:#d63384;">$1</code>')
+            
+            // 配置 marked.js
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                            try {
+                                return hljs.highlight(code, { language: lang }).value;
+                            } catch (e) {}
+                        }
+                        if (typeof hljs !== 'undefined') {
+                            try {
+                                return hljs.highlightAuto(code).value;
+                            } catch (e) {}
+                        }
+                        return code;
+                    },
+                    breaks: true,
+                    gfm: true
+                });
+                
+                // 解析并返回带包装的HTML
+                return '<div class="markdown-content">' + marked.parse(text) + '</div>';
+            }
+            
+            // 回退：简单格式化（如果库未加载）
+            return '<div class="markdown-content">' + text
+                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
                 .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                .replace(/\n/g, '<br>');
+                .replace(/\n/g, '<br>') + '</div>';
         }
 
         // =====================================================
@@ -2744,6 +3441,131 @@ case 'message.updated':
             });
         }
 
+        // 拖拽上传支持
+        function initDragDrop() {
+            const inputArea = document.querySelector('.input-area');
+            
+            inputArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                inputArea.classList.add('drag-over');
+            });
+            
+            inputArea.addEventListener('dragleave', (e) => {
+                inputArea.classList.remove('drag-over');
+            });
+            
+            inputArea.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                inputArea.classList.remove('drag-over');
+                
+                const files = e.dataTransfer.files;
+                for (const file of files) {
+                    await addPendingFile(file);
+                }
+            });
+        }
+
+        // 粘贴图片支持
+        function initPasteImage() {
+            document.addEventListener('paste', async (e) => {
+                const items = e.clipboardData.items;
+                for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        await addPendingFile(file);
+                    }
+                }
+            });
+        }
+
+        // =====================================================
+        // 文件上传功能
+        // =====================================================
+        async function addPendingFile(file) {
+            // 检查文件大小（50MB）
+            if (file.size > 50 * 1024 * 1024) {
+                alert('文件大小不能超过50MB');
+                return;
+            }
+            
+            // 生成预览
+            let preview = '';
+            if (file.type.startsWith('image/')) {
+                preview = await readFileAsDataURL(file);
+            } else {
+                preview = '📄';  // 文件图标
+            }
+            
+            // 添加到待上传列表
+            AppState.pendingFiles.push({
+                file: file,
+                preview: preview,
+                type: file.type,
+                name: file.name,
+                size: file.size
+            });
+            
+            // 更新预览区域
+            renderFilePreview();
+        }
+
+        function renderFilePreview() {
+            const area = document.getElementById('filePreviewArea');
+            
+            if (AppState.pendingFiles.length === 0) {
+                area.style.display = 'none';
+                area.innerHTML = '';
+                return;
+            }
+            
+            area.style.display = 'flex';
+            area.innerHTML = AppState.pendingFiles.map((f, i) => `
+                <div class="file-preview-card">
+                    ${f.type.startsWith('image/') ? 
+                        `<img src="${f.preview}" alt="${escapeHtml(f.name)}">` : 
+                        `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:24px;">${f.preview}</div>`
+                    }
+                    <div class="file-info">
+                        <div class="file-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+                        <div class="file-size">${formatFileSize(f.size)}</div>
+                    </div>
+                    <button class="remove-btn" onclick="removePendingFile(${i})">x</button>
+                </div>
+            `).join('');
+        }
+
+        function removePendingFile(index) {
+            AppState.pendingFiles.splice(index, 1);
+            renderFilePreview();
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('user_id', AppState.userQQ);
+            
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            return await response.json();
+        }
+
+        function readFileAsDataURL(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
         // =====================================================
         // 标题栏菜单功能
         // =====================================================
@@ -2766,8 +3588,11 @@ case 'message.updated':
 
         function openInOpenCodeWeb() {
             const sessionId = AppState.currentSession?.id;
+            const sessionPath = AppState.currentSession?.directory || 'C:\\';
             if (sessionId) {
-                window.open(`http://127.0.0.1:4091/?session=${sessionId}`, '_blank');
+                // 将路径转换为base形式（base64编码后替换特殊字符）
+                const pathBase = btoa(sessionPath).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                window.open(`http://127.0.0.1:4091/${pathBase}/session/${sessionId}`, '_blank');
             }
             toggleMenu(); // 关闭菜单
         }
@@ -2818,7 +3643,20 @@ case 'message.updated':
         }
         
         async function initApp() {
-            // 加载配置
+            // 先获取用户配置（模型和智能体选择），这样渲染时就能应用
+            try {
+                const configResult = await apiPost('/api/model/get', { user_id: AppState.userQQ });
+                if (configResult) {
+                    AppState.userConfig.model = configResult.model || null;
+                    AppState.userConfig.agent = configResult.agent || null;
+                    AppState.userConfig.provider = configResult.provider || null;
+                    console.log('用户配置已加载:', AppState.userConfig);
+                }
+            } catch (e) {
+                console.log('获取用户配置失败，使用默认值');
+            }
+            
+            // 加载配置（模型和智能体列表），渲染时会应用用户配置
             await Promise.all([loadModels(), loadAgents()]);
             
             // 加载用户目录设置
@@ -2843,12 +3681,59 @@ case 'message.updated':
             // 连接 SSE
             connectSSE();
         }
+        
+        // 根据用户配置更新选择框显示
+        function updateUserSelections() {
+            // 更新模型选择
+            const savedModel = AppState.userConfig.model;
+            if (savedModel && AppState.models.length > 0) {
+                // 支持多种匹配方式
+                const model = AppState.models.find(m => 
+                    m.id === savedModel || 
+                    m.id.toLowerCase() === savedModel.toLowerCase() ||
+                    m.id.endsWith('/' + savedModel) ||
+                    m.id.toLowerCase().endsWith('/' + savedModel.toLowerCase()) ||
+                    m.name === savedModel ||
+                    m.name.toLowerCase() === savedModel.toLowerCase()
+                );
+                if (model) {
+                    const selected = document.querySelector('#modelSelect .select-selected');
+                    const selectedText = selected.querySelector('.select-selected-text');
+                    selectedText.textContent = model.name || model.id;
+                    selected.dataset.value = model.id;
+                    AppState.selectedModel = model.id;
+                    console.log('模型选择已更新:', model.id);
+                }
+            }
+            
+            // 更新智能体选择
+            const savedAgent = AppState.userConfig.agent;
+            if (savedAgent && AppState.agents.length > 0) {
+                // 支持多种匹配方式
+                const agent = AppState.agents.find(a => 
+                    a.id === savedAgent || 
+                    a.id.toLowerCase() === savedAgent.toLowerCase() ||
+                    a.name === savedAgent ||
+                    a.name.toLowerCase() === savedAgent.toLowerCase()
+                );
+                if (agent) {
+                    const selected = document.querySelector('#agentSelect .select-selected');
+                    const selectedText = selected.querySelector('.select-selected-text');
+                    selectedText.textContent = agent.name || agent.id;
+                    selected.dataset.value = agent.id;
+                    AppState.selectedAgent = agent.id;
+                    console.log('智能体选择已更新:', agent.id);
+                }
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', async () => {
             // 初始化 UI 交互
             initCustomSelects();
             initTextarea();
             initSendButton();
+            initDragDrop();
+            initPasteImage();
             
             // 监听消息流滚动，检测用户是否在底部
             const messageContent = document.getElementById('messageContent');
@@ -2884,6 +3769,137 @@ case 'message.updated':
             // 初始化应用
             await initApp();
         });
+
+        // 更新会话标题栏的路径显示
+        function updateSessionPathHeader() {
+            const pathElement = document.getElementById('sessionPathHeader');
+            if (!pathElement) return;
+
+            if (AppState.currentSession) {
+                const sessionPath = AppState.currentSession.directory || '';
+                pathElement.textContent = sessionPath || '默认路径';
+                pathElement.title = '点击编辑路径';
+                pathElement.style.display = 'inline-block';
+            } else {
+                pathElement.style.display = 'none';
+            }
+        }
+
+        // 编辑会话路径（标题栏）
+        async function editSessionPathInHeader() {
+            const pathElement = document.getElementById('sessionPathHeader');
+            if (!pathElement || !AppState.currentSession) return;
+
+            const sessionId = AppState.currentSession.id;
+            const currentPath = AppState.currentSession.directory || '';
+
+            // 保存原始文本
+            const originalText = pathElement.textContent;
+
+            // 标志位，防止重复执行restoreSpan
+            let restored = false;
+
+            // 恢复span元素的函数（只负责DOM替换）
+            const restoreSpan = (text) => {
+                if (restored) return;
+                restored = true;
+                
+                const span = document.createElement('span');
+                span.id = 'sessionPathHeader';
+                span.className = 'session-path-header';
+                span.style.cssText = `
+                    display: inline-block;
+                    margin-left: 12px;
+                    font-size: 12px;
+                    color: #888;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    max-width: 200px;
+                    cursor: pointer;
+                `;
+                span.title = '点击编辑路径';
+                span.textContent = text;
+                span.onclick = editSessionPathInHeader;
+                
+                // 替换input为span
+                if (input.parentNode) {
+                    input.replaceWith(span);
+                }
+            };
+
+            // 创建输入框
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentPath;
+            input.style.cssText = `
+                font-size: 12px;
+                padding: 2px 6px;
+                border: 1px solid var(--primary-blue);
+                border-radius: 4px;
+                background: white;
+                color: #333;
+                width: 200px;
+                margin-left: 12px;
+            `;
+
+            // 替换路径元素为输入框
+            pathElement.replaceWith(input);
+            input.focus();
+            input.select();
+
+            // 处理输入框事件
+            input.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newPath = input.value.trim();
+                    const sessionId = AppState.currentSession ? AppState.currentSession.id : null;
+                    try {
+                        const result = await apiPost('/api/directory/set', {
+                            user_id: AppState.userQQ,
+                            directory: newPath,
+                            session_id: sessionId
+                        });
+                        if (result.success && AppState.currentSession) {
+                            AppState.currentSession.directory = result.directory || newPath;
+                        }
+                        restoreSpan(result.directory || newPath || '默认路径');
+                    } catch (error) {
+                        console.error('保存路径失败:', error);
+                        restoreSpan(originalText);
+                    }
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    restoreSpan(originalText);
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                // 延迟执行，让keydown事件先处理
+                setTimeout(() => {
+                    if (!restored) {
+                        const newPath = input.value.trim();
+                        const sessionId = AppState.currentSession ? AppState.currentSession.id : null;
+                        apiPost('/api/directory/set', {
+                            user_id: AppState.userQQ,
+                            directory: newPath,
+                            session_id: sessionId
+                        }).then(result => {
+                            if (result.success && AppState.currentSession) {
+                                AppState.currentSession.directory = result.directory || newPath;
+                            }
+                            restoreSpan(result.directory || newPath || '默认路径');
+                        }).catch(error => {
+                            console.error('保存路径失败:', error);
+                            restoreSpan(originalText);
+                        });
+                    }
+                }, 100);
+            });
+        }
+
+        // 绑定点击事件
+        document.getElementById('sessionPathHeader').onclick = editSessionPathInHeader;
     </script>
 </body>
 </html>

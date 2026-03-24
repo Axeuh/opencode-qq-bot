@@ -11,6 +11,7 @@ import time
 from typing import Dict, List, Optional, Any, Callable, Tuple
 
 from src.utils import config
+from src.utils.config_loader import is_excluded
 from .time_utils import get_cross_platform_time
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class CommandSystem:
             'new': self.handle_new_command,
             'agent': self.handle_agent_command,
             'model': self.handle_model_command,
-            'directory': self.handle_directory_command,
+            'path': self.handle_path_command,
             'session': self.handle_session_command,
             'reload': self.handle_reload_command,
             'stop': self.handle_stop_command,
@@ -101,7 +102,7 @@ class CommandSystem:
             "  /new       - 新建对话（可选标题）\n"
             "  /agent    - 切换智能体\n"
             "  /model     - 切换模型\n"
-            "  /directory - 设置工作目录\n"
+            "  /path      - 设置会话路径\n"
             "  /session   - 管理会话\n"
             "  /command   - 列出/执行斜杠命令\n"
             "  /reload    - 重启机器人\n"
@@ -121,40 +122,77 @@ class CommandSystem:
         await self.send_reply(message_type, group_id, user_id, reply)
     
     
-    async def handle_directory_command(self, message_type: str, group_id: Optional[int],
-                                     user_id: Optional[int], args: str):
+    async def handle_path_command(self, message_type: str, group_id: Optional[int],
+                                 user_id: Optional[int], args: str):
+        """处理 /path 命令
+        
+        格式：
+        /path - 显示命令帮助
+        /path reset - 重置当前会话为默认路径
+        /path [路径] - 设置当前会话路径
+        """
         if not self.session_manager or not user_id:
             await self.send_reply(message_type, group_id, user_id, '会话管理器不可用。')
             return
         
-        import base64
-        
         # 获取当前会话
         current_session = self.session_manager.get_user_session(user_id)
         
-        # 获取用户配置的 directory
-        if user_id in self.session_manager.user_configs:
-            user_config = self.session_manager.user_configs[user_id]
-            directory = user_config.directory
-        elif current_session:
-            directory = current_session.directory
+        # 如果没有当前会话，创建临时会话用于路径管理？
+        if not current_session:
+            await self.send_reply(message_type, group_id, user_id, '没有活动的会话。请先使用 /new 创建会话。')
+            return
+        
+        args = args.strip()
+        
+        # 1. 显示帮助（无参数）
+        if not args:
+            help_text = (
+                "路径命令帮助\n\n"
+                "格式：\n"
+                "  /path - 显示当前会话路径\n"
+                "  /path reset - 重置当前会话为默认路径\n"
+                "  /path [路径] - 设置当前会话路径\n\n"
+                "说明：\n"
+                "• 每个会话有独立的路径设置\n"
+                "• 默认路径为配置文件中的 OPENCODE_DIRECTORY\n"
+                "• 切换会话时路径保持不变"
+            )
+            await self.send_reply(message_type, group_id, user_id, help_text)
+            return
+        
+        # 2. 重置路径
+        if args.lower() == 'reset':
+            success = self.session_manager.set_session_path(
+                user_id=user_id,
+                session_id=current_session.session_id,
+                reset_to_default=True
+            )
+            if success:
+                new_path = self.session_manager.get_session_path(user_id, current_session.session_id)
+                await self.send_reply(message_type, group_id, user_id, f'已重置当前会话路径为默认：{new_path}')
+            else:
+                await self.send_reply(message_type, group_id, user_id, '重置路径失败。')
+            return
+        
+        # 3. 设置路径
+        # 验证路径格式（基本验证）
+        path = args.strip()
+        if not path:
+            await self.send_reply(message_type, group_id, user_id, '路径不能为空。')
+            return
+        
+        # 调用会话管理器设置路径
+        success = self.session_manager.set_session_path(
+            user_id=user_id,
+            session_id=current_session.session_id,
+            path=path
+        )
+        
+        if success:
+            await self.send_reply(message_type, group_id, user_id, f'已设置当前会话路径为：{path}')
         else:
-            directory = config.OPENCODE_DIRECTORY or '/'
-        
-        # 获取OpenCode基础URL
-        base_url = config.OPENCODE_BASE_URL or 'http://127.0.0.1:4091'
-        
-        # 构建网页链接
-        directory_b64 = base64.b64encode(directory.encode()).decode()
-        web_url = base_url + '/' + directory_b64
-        
-        # 如果有当前会话，添加 session 部分
-        if current_session:
-            web_url = base_url + '/' + directory_b64 + '/session/' + current_session.session_id
-        
-        reply = f"当前工作目录\n目录: {directory}\nOpenCode链接: {web_url}"
-        
-        await self.send_reply(message_type, group_id, user_id, reply)
+            await self.send_reply(message_type, group_id, user_id, '设置路径失败。')
     
     
 
@@ -431,23 +469,52 @@ class CommandSystem:
             await self.send_reply(message_type, group_id, user_id, "会话管理器不可用。")
             return
         
+        # 从 opencode API 动态获取智能体列表
+        if not self.opencode_client:
+            await self.send_reply(message_type, group_id, user_id, "OpenCode 客户端不可用。")
+            return
+        
+        agents_data, error = await self.opencode_client.get_agents()
+        if error:
+            await self.send_reply(message_type, group_id, user_id, f"获取智能体列表失败：{error}")
+            return
+        
+        # 提取智能体名称列表并过滤排除项
+        agents = []
+        excluded_agents = config.OPENCODE_EXCLUDED_AGENTS or []
+        if agents_data:
+            for agent in agents_data:
+                try:
+                    if isinstance(agent, dict):
+                        agent_name = agent.get("name") or agent.get("id") or str(agent)
+                    elif isinstance(agent, str):
+                        agent_name = agent
+                    else:
+                        agent_name = str(agent) if agent else ""
+                    
+                    if agent_name and not is_excluded(agent_name, excluded_agents):
+                        agents.append(agent_name)
+                except Exception as e:
+                    logger.warning(f"处理智能体数据时出错: {e}, agent={agent}")
+                    continue
+        
         if not args:
             user_config = self.session_manager.get_user_config(user_id)
             current_agent = user_config.agent if user_config else config.OPENCODE_DEFAULT_AGENT
             
             agents_list = []
             current_index = 0
-            for i, a in enumerate(config.OPENCODE_SUPPORTED_AGENTS, 1):
+            for i, a in enumerate(agents, 1):
                 marker = " *" if a == current_agent else ""
                 agents_list.append(f"  {i}. {a}{marker}")
                 if a == current_agent:
                     current_index = i
-            agents = "\n".join(agents_list)
+            agents_text = "\n".join(agents_list)
             
             reply = (
                 f"当前智能体：{current_agent}"
                 + (f" (序号 {current_index})" if current_index > 0 else "")
-                + f"\n\n可用的智能体:\n{agents}\n\n"
+                + f"\n\n可用的智能体:\n{agents_text}\n\n"
                 f"使用方法：/agent [序号] 或 /agent [智能体名称]\n"
                 f"示例：/agent 1 或 /agent sisyphus"
             )
@@ -457,17 +524,17 @@ class CommandSystem:
             
             if agent_input.isdigit():
                 index = int(agent_input)
-                if 1 <= index <= len(config.OPENCODE_SUPPORTED_AGENTS):
-                    matched_agent = config.OPENCODE_SUPPORTED_AGENTS[index - 1]
+                if 1 <= index <= len(agents):
+                    matched_agent = agents[index - 1]
                 else:
                     await self.send_reply(message_type, group_id, user_id, 
-                        f"无效的序号：{index}（有效范围：1-{len(config.OPENCODE_SUPPORTED_AGENTS)}）")
+                        f"无效的序号：{index}（有效范围：1-{len(agents)}）")
                     return
             else:
-                if agent_input in config.OPENCODE_SUPPORTED_AGENTS:
+                if agent_input in agents:
                     matched_agent = agent_input
                 else:
-                    for a in config.OPENCODE_SUPPORTED_AGENTS:
+                    for a in agents:
                         if a.lower() == agent_input.lower():
                             matched_agent = a
                             break
@@ -486,6 +553,43 @@ class CommandSystem:
             await self.send_reply(message_type, group_id, user_id, "会话管理器不可用。")
             return
         
+        # 从 opencode API 动态获取模型列表
+        if not self.opencode_client:
+            await self.send_reply(message_type, group_id, user_id, "OpenCode 客户端不可用。")
+            return
+        
+        models_data, error = await self.opencode_client.get_models()
+        if error:
+            await self.send_reply(message_type, group_id, user_id, f"获取模型列表失败：{error}")
+            return
+        
+        # 提取模型ID列表并过滤排除项
+        models = []
+        excluded_models = config.OPENCODE_EXCLUDED_MODELS or []
+        if models_data:
+            for model in models_data:
+                try:
+                    if isinstance(model, dict):
+                        provider_id = model.get("provider_id", "")
+                        model_id = model.get("model_id", "")
+                        if provider_id and model_id:
+                            full_model_id = f"{provider_id}/{model_id}"
+                        else:
+                            full_model_id = model_id or model.get("id") or ""
+                        
+                        if full_model_id and not is_excluded(full_model_id, excluded_models):
+                            models.append(full_model_id)
+                    elif isinstance(model, str):
+                        if model and not is_excluded(model, excluded_models):
+                            models.append(model)
+                    else:
+                        model_str = str(model) if model else ""
+                        if model_str and not is_excluded(model_str, excluded_models):
+                            models.append(model_str)
+                except Exception as e:
+                    logger.warning(f"处理模型数据时出错: {e}, model={model}")
+                    continue
+        
         if not args:
             user_config = self.session_manager.get_user_config(user_id)
             current_model = user_config.model if user_config else config.OPENCODE_DEFAULT_MODEL
@@ -493,19 +597,19 @@ class CommandSystem:
             # 显示带序号的模型列表
             models_list = []
             current_index = 0
-            for i, m in enumerate(config.OPENCODE_SUPPORTED_MODELS, 1):
+            for i, m in enumerate(models, 1):
                 marker = " *" if m == current_model else ""
                 models_list.append(f"  {i}. {m}{marker}")
                 if m == current_model:
                     current_index = i
-            models = "\n".join(models_list)
+            models_text = "\n".join(models_list)
             
             reply = (
                 f"当前模型：{current_model}"
                 + (f" (序号 {current_index})" if current_index > 0 else "")
-                + f"\n\n可用的模型:\n{models}\n\n"
+                + f"\n\n可用的模型:\n{models_text}\n\n"
                 f"使用方法：/model [序号] 或 /model [模型名称]\n"
-                f"示例：/model 13 或 /model deepseek/deepseek-reasoner"
+                f"示例：/model 1 或 /model deepseek/deepseek-reasoner"
             )
         else:
             model_input = args.strip()
@@ -514,49 +618,46 @@ class CommandSystem:
             # 检查是否为序号
             if model_input.isdigit():
                 index = int(model_input)
-                if 1 <= index <= len(config.OPENCODE_SUPPORTED_MODELS):
-                    matched_model = config.OPENCODE_SUPPORTED_MODELS[index - 1]
+                if 1 <= index <= len(models):
+                    matched_model = models[index - 1]
                 else:
                     await self.send_reply(message_type, group_id, user_id, 
-                        f"无效的序号：{index}（有效范围：1-{len(config.OPENCODE_SUPPORTED_MODELS)}）")
+                        f"无效的序号：{index}（有效范围：1-{len(models)}）")
                     return
             else:
                 # 按名称匹配
                 # 先尝试精确匹配
-                if model_input in config.OPENCODE_SUPPORTED_MODELS:
+                if model_input in models:
                     matched_model = model_input
                 else:
                     # 尝试不区分大小写匹配
-                    for m in config.OPENCODE_SUPPORTED_MODELS:
+                    for m in models:
                         if m.lower() == model_input.lower():
                             matched_model = m
                             break
                     
                     # 尝试匹配模型名称的最后一部分（如 "kimi-k2.5" 匹配 "alibaba-coding-plan-cn/kimi-k2.5"）
                     if not matched_model:
-                        for m in config.OPENCODE_SUPPORTED_MODELS:
+                        for m in models:
                             parts = m.split("/")
                             if len(parts) >= 2 and parts[-1].lower() == model_input.lower():
                                 matched_model = m
                                 break
             
             if matched_model:
-                # 从完整模型ID中提取供应商
-                if "/" in matched_model:
-                    provider_name = matched_model.split("/")[0]
-                    self.session_manager.update_user_config(user_id, model=matched_model, provider=provider_name)
-                else:
-                    self.session_manager.update_user_config(user_id, model=matched_model)
+                # session_manager.update_user_config 会自动分离 provider 和 model
+                # 所以直接传入完整模型ID即可
+                self.session_manager.update_user_config(user_id, model=matched_model)
                 reply = f"模型已切换到：{matched_model}\n\n配置已保存，重启后仍然有效。"
             else:
-# 提供模糊匹配建议
+                # 提供模糊匹配建议
                 suggestions = []
-                for m in config.OPENCODE_SUPPORTED_MODELS:
+                for m in models:
                     if model_input.lower() in m.lower():
                         suggestions.append(m)
                 
                 if suggestions:
-                    suggestion_text = "\n".join([f"  • {s}" for s in suggestions[:3]])
+                    suggestion_text = "\n".join([f"  - {s}" for s in suggestions[:3]])
                     reply = f"未找到模型：{model_input}\n\n您是否想要：\n{suggestion_text}"
                 else:
                     reply = f"未找到模型：{model_input}\n使用 /model 查看可用模型列表。"
