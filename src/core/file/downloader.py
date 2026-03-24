@@ -120,10 +120,10 @@ class FileDownloader:
         try:
             logger.debug(f"开始下载文件：{filename} (ID: {file_id}, 类型：{file_type})")
             
-            # 如果是图片 URL 下载模式
-            if url_only_mode and file_type == "image" and url:
-                logger.debug(f"使用 HTTP 下载图片：{url}")
-                result = await self._download_image_from_url(url, save_path)
+            # 如果是 URL 下载模式（支持图片、视频、音频等多种类型）
+            if url_only_mode and url:
+                logger.info(f"使用 HTTP 下载 {file_type}：{url[:100]}...")
+                result = await self._download_file_from_url(url, save_path, file_type)
                 if result:
                     return result
                 logger.debug(f"URL 下载失败，尝试其他下载方式")
@@ -132,7 +132,19 @@ class FileDownloader:
             if file_id:
                 file_info_result = await self._get_file_info_via_api(file_id)
                 if file_info_result:
+                    # 优先使用 API 返回的 URL（适用于视频等媒体文件）
+                    api_url = file_info_result.get("url", "")
                     napcat_path = file_info_result.get("file", "")
+                    
+                    # 如果 API 返回了 URL，直接使用 URL 下载
+                    if api_url:
+                        logger.info(f"使用 get_file API 返回的 URL 下载: {api_url[:80]}...")
+                        result = await self._download_file_from_url(api_url, save_path, file_type)
+                        if result:
+                            return result
+                        logger.warning(f"从 get_file API 返回的 URL 下载失败，尝试其他方法")
+                    
+                    # 如果有本地路径，尝试从本地路径复制
                     if napcat_path:
                         logger.info(f"使用 get_file API 返回的路径下载: {napcat_path}")
                         result = await self._download_from_napcat_path(napcat_path, save_path)
@@ -326,12 +338,13 @@ class FileDownloader:
             logger.error(f"复制文件异常: {e}")
             return None
     
-    async def _download_image_from_url(self, url: str, save_path: str) -> Optional[str]:
-        """从 URL 下载图片到本地
+    async def _download_file_from_url(self, url: str, save_path: str, file_type: str = "file") -> Optional[str]:
+        """从 URL 下载文件到本地（支持图片、视频、音频等多种类型）
         
         Args:
-            url: 图片 URL 地址
+            url: 文件 URL 地址
             save_path: 目标保存路径
+            file_type: 文件类型（image, video, audio, file 等）
             
         Returns:
             下载后的文件路径，或 None（失败）
@@ -339,35 +352,40 @@ class FileDownloader:
         import aiohttp
         
         try:
-            logger.info(f"开始从 URL 下载图片：{url}")
+            logger.info(f"开始从 URL 下载 {file_type}：{url[:100]}...")
+            
+            # 设置不同的超时时间：视频文件可能较大
+            timeout_seconds = 120 if file_type in ("video", "audio") else 60
+            timeout = aiohttp.ClientTimeout(total=timeout_seconds)
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                async with session.get(url, timeout=timeout) as response:
                     if response.status != 200:
-                        logger.error(f"下载图片失败：HTTP {response.status}")
+                        logger.error(f"下载 {file_type} 失败：HTTP {response.status}")
                         return None
                     
-                    image_data = await response.read()
+                    file_data = await response.read()
                     
-                    if not image_data:
-                        logger.error("下载的图片数据为空")
+                    if not file_data:
+                        logger.error(f"下载的 {file_type} 数据为空")
                         return None
                     
                     with open(save_path, 'wb') as f:
-                        f.write(image_data)
+                        f.write(file_data)
                     
                     if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
-                        logger.info(f"图片下载成功：{save_path} (大小：{os.path.getsize(save_path)}字节)")
+                        file_size_kb = os.path.getsize(save_path) / 1024
+                        logger.info(f"{file_type} 下载成功：{save_path} (大小：{file_size_kb:.1f}KB)")
                         return save_path
                     else:
-                        logger.error(f"图片写入失败：{save_path}")
+                        logger.error(f"{file_type} 写入失败：{save_path}")
                         return None
                         
         except aiohttp.ClientError as e:
-            logger.error(f"aiohttp 下载图片失败：{e}")
+            logger.error(f"aiohttp 下载 {file_type} 失败：{e}")
             return None
         except Exception as e:
-            logger.error(f"下载图片过程中出错：{e}")
+            logger.error(f"下载 {file_type} 过程中出错：{e}")
             return None
     
     # ==================== 私有方法 - 三层回退下载 ====================
