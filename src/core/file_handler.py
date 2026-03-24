@@ -55,8 +55,8 @@ class FileHandler:
             "include_file_path_in_message": True,
             "file_message_prefix": "用户发送了一个文件，文件路径: ",
             "continue_on_download_fail": True,
-            "max_file_size_mb": 100,
-            "max_file_size": 50 * 1024 * 1024,  # 50MB，与onebot_client.py保持一致
+            "max_file_size_mb": 500,
+            "max_file_size": 500 * 1024 * 1024,  # 500MB，与onebot_client.py保持一致
             "allowed_file_types": ["image", "file", "video", "voice"],
             "image_download_dir": "images",
             "file_download_dir": "files",

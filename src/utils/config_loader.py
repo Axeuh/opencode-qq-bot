@@ -4,9 +4,47 @@
 """
 
 import os
+import re
+import fnmatch
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+
+def matches_pattern(name: str, pattern: str) -> bool:
+    """
+    检查名称是否匹配通配符模式
+    
+    Args:
+        name: 要检查的名称
+        pattern: 通配符模式，支持 * 和 ?
+        
+    Returns:
+        是否匹配
+    """
+    # 将通配符模式转换为正则表达式
+    regex_pattern = fnmatch.translate(pattern)
+    return bool(re.match(regex_pattern, name, re.IGNORECASE))
+
+
+def is_excluded(name: str, excluded_patterns: List[str]) -> bool:
+    """
+    检查名称是否在排除列表中
+    
+    Args:
+        name: 要检查的名称
+        excluded_patterns: 排除模式列表
+        
+    Returns:
+        是否被排除
+    """
+    if not excluded_patterns:
+        return False
+    
+    for pattern in excluded_patterns:
+        if matches_pattern(name, pattern):
+            return True
+    return False
 
 
 class ConfigLoader:
@@ -31,6 +69,9 @@ class ConfigLoader:
             "config.yml",
             Path(__file__).parent.parent.parent / "config.yaml",
             Path(__file__).parent.parent.parent / "config.yml",
+            # mybot的配置文件路径
+            Path(__file__).parent.parent.parent.parent / "mybot" / "config.yaml",
+            Path(__file__).parent.parent.parent.parent / "mybot" / "config.yml",
         ]
         
         for path in possible_paths:
@@ -150,6 +191,8 @@ OPENCODE_AUTH = _loader.get("opencode.auth", {})
 OPENCODE_COOKIES = _loader.get("opencode.cookies", {})
 OPENCODE_SUPPORTED_AGENTS = _loader.get("opencode.supported_agents", [])
 OPENCODE_SUPPORTED_MODELS = _loader.get("opencode.supported_models", [])
+OPENCODE_EXCLUDED_AGENTS = _loader.get("opencode.excluded_agents", [])
+OPENCODE_EXCLUDED_MODELS = _loader.get("opencode.excluded_models", [])
 OPENCODE_COMMAND_PREFIX = _loader.get("opencode.command_prefix", "/")
 
 # 会话配置
@@ -191,7 +234,10 @@ TASK_SCHEDULER_CHECK_INTERVAL = _loader.get("task_scheduler.check_interval", 10)
 HTTP_SERVER_ENABLED = _loader.get("http_server.enabled", True)
 HTTP_SERVER_HOST = _loader.get("http_server.host", "127.0.0.1")
 HTTP_SERVER_PORT = _loader.get("http_server.port", 8080)
+HTTP_SERVER_HTTP_PORT = _loader.get("http_server.http_port", None)
 HTTP_SERVER_ACCESS_TOKEN = _loader.get("http_server.access_token", "")
+HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl_cert", None)
+HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl_key", None)
 
 
 def update_config_from_reload() -> None:
@@ -208,13 +254,13 @@ def update_config_from_reload() -> None:
     global OPENCODE_HOST, OPENCODE_PORT, OPENCODE_BASE_URL, OPENCODE_DIRECTORY, OPENCODE_TIMEOUT
     global OPENCODE_DEFAULT_AGENT, OPENCODE_DEFAULT_MODEL, OPENCODE_DEFAULT_PROVIDER
     global OPENCODE_AUTH, OPENCODE_COOKIES, OPENCODE_SUPPORTED_AGENTS, OPENCODE_SUPPORTED_MODELS
-    global OPENCODE_COMMAND_PREFIX, OPENCODE_SESSION_CONFIG, LOGGING_CONFIG
+    global OPENCODE_EXCLUDED_AGENTS, OPENCODE_EXCLUDED_MODELS, OPENCODE_COMMAND_PREFIX, OPENCODE_SESSION_CONFIG, LOGGING_CONFIG
     global FILE_HANDLING_CONFIG, DOWNLOAD_DIR, TEMP_DIR, MAX_FILE_SIZE
     global ALLOWED_EXTENSIONS, ENABLE_AUTO_DOWNLOAD
     global SPECIAL_REPLIES, ENABLE_AT_MENTION
     global OPENCODE_ENABLED_FEATURES, OPENCODE_MESSAGE_CONFIG, OPENCODE_SYSTEM_PROMPT
     global AUTO_REPLY_KEYWORDS, MESSAGE_CONFIG, TARGET_GROUP_ID, TASK_SCHEDULER_CHECK_INTERVAL
-    global HTTP_SERVER_ENABLED, HTTP_SERVER_HOST, HTTP_SERVER_PORT, HTTP_SERVER_ACCESS_TOKEN
+    global HTTP_SERVER_ENABLED, HTTP_SERVER_HOST, HTTP_SERVER_PORT, HTTP_SERVER_HTTP_PORT, HTTP_SERVER_ACCESS_TOKEN, HTTP_SERVER_SSL_CERT, HTTP_SERVER_SSL_KEY
     
     # 重新加载配置
     _loader = ConfigLoader(_loader.config_path if _loader else None)
@@ -254,6 +300,8 @@ def update_config_from_reload() -> None:
     OPENCODE_COOKIES = _loader.get("opencode.cookies", {})
     OPENCODE_SUPPORTED_AGENTS = _loader.get("opencode.supported_agents", [])
     OPENCODE_SUPPORTED_MODELS = _loader.get("opencode.supported_models", [])
+    OPENCODE_EXCLUDED_AGENTS = _loader.get("opencode.excluded_agents", [])
+    OPENCODE_EXCLUDED_MODELS = _loader.get("opencode.excluded_models", [])
     OPENCODE_COMMAND_PREFIX = _loader.get("opencode.command_prefix", "/")
     
     OPENCODE_SESSION_CONFIG = _loader.get("session", {})
@@ -281,4 +329,7 @@ def update_config_from_reload() -> None:
     HTTP_SERVER_ENABLED = _loader.get("http_server.enabled", True)
     HTTP_SERVER_HOST = _loader.get("http_server.host", "127.0.0.1")
     HTTP_SERVER_PORT = _loader.get("http_server.port", 8080)
+    HTTP_SERVER_HTTP_PORT = _loader.get("http_server.http_port", None)
     HTTP_SERVER_ACCESS_TOKEN = _loader.get("http_server.access_token", "")
+    HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl_cert", None)
+    HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl_key", None)

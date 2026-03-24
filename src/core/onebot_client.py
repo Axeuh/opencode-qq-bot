@@ -237,11 +237,24 @@ class OneBotClient:
         self.http_server = HTTPServer(
             host=config.HTTP_SERVER_HOST,
             port=config.HTTP_SERVER_PORT,
+            http_port=config.HTTP_SERVER_HTTP_PORT,
             access_token=config.HTTP_SERVER_ACCESS_TOKEN,
+            ssl_cert=config.HTTP_SERVER_SSL_CERT,
+            ssl_key=config.HTTP_SERVER_SSL_KEY,
             **callbacks
         )
         
-        logger.info(f"HTTP 服务器已配置: http://{config.HTTP_SERVER_HOST}:{config.HTTP_SERVER_PORT}")
+        # 显示服务器地址
+        if config.HTTP_SERVER_SSL_CERT and config.HTTP_SERVER_SSL_KEY:
+            https_url = f"https://{config.HTTP_SERVER_HOST}:{config.HTTP_SERVER_PORT}"
+            if config.HTTP_SERVER_HTTP_PORT:
+                http_url = f"http://{config.HTTP_SERVER_HOST}:{config.HTTP_SERVER_HTTP_PORT}"
+                logger.info(f"HTTP 服务器已配置: {https_url} (HTTPS) 和 {http_url} (HTTP)")
+            else:
+                logger.info(f"HTTP 服务器已配置: {https_url} (HTTPS)")
+        else:
+            http_url = f"http://{config.HTTP_SERVER_HOST}:{config.HTTP_SERVER_PORT}"
+            logger.info(f"HTTP 服务器已配置: {http_url}")
     
     def _init_task_scheduler(self):
         """初始化定时任务调度器"""
