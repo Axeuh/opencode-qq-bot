@@ -62,7 +62,30 @@ class OpenCodeWebMonitor:
         self._cleaned_up = True
         self.running = False
         if self.process:
-            self.process.terminate()
+            try:
+                if sys.platform == "win32":
+                    # Windows 上使用 taskkill 强制终止整个进程树
+                    subprocess.run(
+                        ['taskkill', '/F', '/T', '/PID', str(self.process.pid)],
+                        capture_output=True,
+                        timeout=5
+                    )
+                else:
+                    # Unix 上使用进程组
+                    import os
+                    import signal
+                    try:
+                        os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+            except Exception as e:
+                self.log(f"清理进程时出错: {e}")
+            finally:
+                try:
+                    self.process.terminate()
+                    self.process.wait(timeout=2)
+                except:
+                    pass
             self.process = None
     
     def log(self, message):
@@ -90,6 +113,36 @@ class OpenCodeWebMonitor:
                 return port
         return None  # 没有找到可用端口
     
+    def find_opencode_executable(self):
+        """查找 opencode 可执行文件路径"""
+        # 可能的路径列表
+        possible_paths = [
+            # 用户 npm 全局安装路径
+            os.path.expandvars(r"C:\Users\Administrator\AppData\Roaming\npm\opencode.cmd"),
+            os.path.expandvars(r"C:\Users\Administrator\AppData\Roaming\npm\opencode"),
+            # 当前用户 npm 路径
+            os.path.expanduser(r"AppData\Roaming\npm\opencode.cmd"),
+            os.path.expanduser(r"AppData\Roaming\npm\opencode"),
+        ]
+        
+        for path in possible_paths:
+            if os.path.isfile(path):
+                return path
+        
+        # 尝试使用 where/which 查找
+        try:
+            if sys.platform == "win32":
+                result = subprocess.run(['where', 'opencode'], capture_output=True, text=True, shell=True)
+            else:
+                result = subprocess.run(['which', 'opencode'], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip().split('\n')[0]
+        except:
+            pass
+        
+        return None
+    
     def run_command(self):
         """运行 opencode web 命令"""
         # 检查端口是否被占用，如果是则尝试其他端口
@@ -100,7 +153,14 @@ class OpenCodeWebMonitor:
             self.log(f"请检查是否有其他OpenCode实例在运行，或修改配置文件中的端口")
             return -3  # 特殊退出码表示端口被占用
         
-        cmd = ["opencode", "web", "--port", str(current_port)]
+        # 查找 opencode 可执行文件
+        opencode_path = self.find_opencode_executable()
+        if opencode_path:
+            cmd = [opencode_path, "web", "--port", str(current_port)]
+        else:
+            # 回退到 npx
+            cmd = ["npx", "opencode", "web", "--port", str(current_port)]
+        
         self.log(f"启动命令: {' '.join(cmd)}")
         
         try:
@@ -155,7 +215,7 @@ class OpenCodeWebMonitor:
             
         except FileNotFoundError:
             self.log(f"错误: 找不到 opencode 命令")
-            self.log(f"opencode 应该安装在: {self.find_opencode_path()}")
+            self.log(f"请确保 opencode 已安装: npm install -g opencode")
             return -1
         except Exception as e:
             self.log(f"运行命令时发生异常: {e}")
@@ -163,21 +223,6 @@ class OpenCodeWebMonitor:
             self.log(f"异常详情: {traceback.format_exc()}")
             return -2
     
-    def find_opencode_path(self):
-        """查找 opencode 命令路径"""
-        try:
-            # Windows系统使用 where 命令
-            if sys.platform == "win32":
-                result = subprocess.run(['where', 'opencode'], capture_output=True, text=True, shell=True)
-            else:
-                result = subprocess.run(['which', 'opencode'], capture_output=True, text=True)
-            
-            if result.stdout:
-                return result.stdout.strip()
-        except:
-            pass
-        return "未找到，请确保 opencode 已安装并添加到 PATH"
-            
     def start(self):
         """启动监控循环"""
         self.log(f"=== OpenCode Web 监控服务启动 ===")
