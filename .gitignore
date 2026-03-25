@@ -60,3 +60,4 @@ nul
 # Sensitive config files
 config.yaml
 config.local.yaml
+skills/*/config.json
