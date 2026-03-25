@@ -437,13 +437,17 @@ class MessageProcessor:
     def build_quoted_prefix(
         self, 
         quoted_content: str, 
-        quoted_files_info: str
+        quoted_files_info: str,
+        user_id: Optional[int] = None,
+        group_id: Optional[int] = None
     ) -> str:
         """构建引用消息前缀 (JSON格式)
         
         Args:
             quoted_content: 引用内容文本
             quoted_files_info: 引用附件信息
+            user_id: 用户QQ号
+            group_id: 群号
             
         Returns:
             引用消息前缀
@@ -460,18 +464,22 @@ class MessageProcessor:
             # forward 类型
             forward_content = quoted_files_info.replace("[forward: ", "").rstrip("]")
             prefix_data["forward_content"] = forward_content
-            hint_parts.append("用户引用了一个合并转发消息")
+            hint_parts.append(f"用户(QQ: {user_id})引用了一个合并转发消息")
         elif quoted_files_info:
             # 有附件
             if quoted_content:
                 prefix_data["content"] = quoted_content
-                hint_parts.append(f"用户引用了一条消息，内容: {quoted_content[:50]}...")
+                hint_parts.append(f"用户(QQ: {user_id})引用了一条消息，内容: {quoted_content[:50]}...")
             prefix_data["attachments"] = quoted_files_info
             hint_parts.append("引用的消息包含附件")
         elif quoted_content:
             # 只有文本内容
             prefix_data["content"] = quoted_content
-            hint_parts.append(f"用户引用了一条消息，内容: {quoted_content[:50]}...")
+            hint_parts.append(f"用户(QQ: {user_id})引用了一条消息，内容: {quoted_content[:50]}...")
+        
+        # 添加用户和群信息
+        prefix_data["user_qq"] = str(user_id) if user_id else None
+        prefix_data["group_id"] = str(group_id) if group_id else None
         
         # 添加提示信息
         if hint_parts:

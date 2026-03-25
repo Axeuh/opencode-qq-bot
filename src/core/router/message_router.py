@@ -372,7 +372,7 @@ class MessageRouter:
                 quoted_content = "[非文本消息]"
         
         # 构建前缀
-        quoted_prefix = self.processor.build_quoted_prefix(quoted_content, quoted_files_info)
+        quoted_prefix = self.processor.build_quoted_prefix(quoted_content, quoted_files_info, user_id, group_id)
         
         if quoted_prefix:
             raw_message = quoted_prefix + raw_message
