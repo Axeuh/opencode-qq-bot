@@ -84,6 +84,10 @@ class RouteSetup:
         router.add_get("/", self.handle_index)
         router.add_get("/index.html", self.handle_index)
         
+        # 静态资源目录
+        router.add_get("/css/{filename}", self.handle_static_css)
+        router.add_get("/js/{filename}", self.handle_static_js)
+        
         # Agents 端点
         router.add_post("/api/agents/get", self.config_endpoints.handle_get_agents)
         router.add_post("/api/agents/set", self.config_endpoints.handle_set_agents)
@@ -161,6 +165,32 @@ class RouteSetup:
             if os.path.exists(abs_path):
                 return web.FileResponse(abs_path)
         return web.json_response({"success": False, "error": "index.html not found"}, status=404)
+    
+    async def handle_static_css(self, request: web.Request) -> web.FileResponse:
+        """返回CSS文件"""
+        filename = request.match_info.get('filename', '')
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), '..', '..', '..', 'web', 'css', filename),
+            os.path.join(os.path.dirname(__file__), '..', '..', 'web', 'css', filename),
+        ]
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            if os.path.exists(abs_path):
+                return web.FileResponse(abs_path)
+        return web.json_response({"success": False, "error": "File not found"}, status=404)
+    
+    async def handle_static_js(self, request: web.Request) -> web.FileResponse:
+        """返回JS文件"""
+        filename = request.match_info.get('filename', '')
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), '..', '..', '..', 'web', 'js', filename),
+            os.path.join(os.path.dirname(__file__), '..', '..', 'web', 'js', filename),
+        ]
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            if os.path.exists(abs_path):
+                return web.FileResponse(abs_path)
+        return web.json_response({"success": False, "error": "File not found"}, status=404)
 
 
 def log_routes_info() -> None:

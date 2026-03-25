@@ -194,7 +194,7 @@ def format_agent_list(
         + (f" (序号 {current_index})" if current_index > 0 else "")
         + f"\n\n可用的智能体:\n{agents_text}\n\n"
         + "使用方法：/agent [序号] 或 /agent [智能体名称]\n"
-        + "示例：/agent 1 或 /agent sisyphus"
+        + "示例：/agent 1 或 /agent \"Sisyphus (Ultraworker)\""
     )
     return reply
 
@@ -246,9 +246,16 @@ def match_agent_by_input(
 ) -> Optional[str]:
     """根据用户输入匹配智能体
     
+    支持以下匹配方式：
+    1. 序号匹配：/agent 1
+    2. 精确匹配：/agent "Sisyphus (Ultraworker)"
+    3. 不区分大小写匹配：/agent "sisyphus (ultraworker)"
+    
+    注意：不支持简写匹配，必须使用完整的智能体名称。
+    
     Args:
         agents: 智能体列表
-        agent_input: 用户输入（序号或名称）
+        agent_input: 用户输入（序号或完整名称）
         
     Returns:
         匹配的智能体名称或 None
@@ -256,20 +263,22 @@ def match_agent_by_input(
     if not agents:
         return None
     
-    # 检查是否为序号
+    agent_input_lower = agent_input.lower()
+    
+    # 1. 检查是否为序号
     if agent_input.isdigit():
         index = int(agent_input)
         if 1 <= index <= len(agents):
             return agents[index - 1]
         return None
     
-    # 精确匹配
+    # 2. 精确匹配
     if agent_input in agents:
         return agent_input
     
-    # 不区分大小写匹配
+    # 3. 不区分大小写匹配
     for a in agents:
-        if a.lower() == agent_input.lower():
+        if a.lower() == agent_input_lower:
             return a
     
     return None

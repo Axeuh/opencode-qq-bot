@@ -310,16 +310,22 @@ class HTTPCallbackHandler:
             matched_agent_id = None
             matched_agent_name = None
             
-            # 尝试匹配智能体 ID 或 name
+            value_lower = str(value).lower()
+            
+            # 尝试匹配智能体 ID 或 name（精确匹配和不区分大小写匹配）
             for agent in available_agents:
                 if isinstance(agent, dict):
                     agent_id = agent.get("id", "")
                     agent_name = agent.get("name", agent_id)
-                    # 匹配 ID 或 name
-                    if (agent_id == value or 
-                        agent_id.lower() == str(value).lower() or
-                        agent_name == value or
-                        agent_name.lower() == str(value).lower()):
+                    
+                    # 1. 精确匹配 ID 或 name
+                    if agent_id == value or agent_name == value:
+                        matched_agent_id = agent_id
+                        matched_agent_name = agent_name
+                        break
+                    
+                    # 2. 不区分大小写匹配
+                    if agent_id.lower() == value_lower or agent_name.lower() == value_lower:
                         matched_agent_id = agent_id
                         matched_agent_name = agent_name
                         break
