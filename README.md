@@ -268,6 +268,13 @@ python scripts/run_bot.py
 
 ### 8. 技能系统
 
+**运行机制**：技能基于 [OhMyOpenCode](https://github.com/axeuh/ohmyopencode) 插件的 `skill_mcp` 工具运行。该工具通过 MCP (Model Context Protocol) 协议加载和执行 `skills/` 目录下的技能模块。
+
+**配置方式**：
+1. 复制 `skills/*/config.json.example` 为 `config.json`
+2. 填写实际的认证信息（token、服务器地址等）
+3. OpenCode 会自动加载并注册技能工具
+
 OpenCode 通过技能与 QQ 交互：
 
 #### axeuh-control MCP 技能
