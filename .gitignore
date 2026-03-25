@@ -56,3 +56,7 @@ cache/
 *.bak
 tmp/nul
 nul
+
+# Sensitive config files
+config.yaml
+config.local.yaml

@@ -1,0 +1,143 @@
+# Axeuh_home QQ 机器人配置文件模板
+# 复制此文件为 config.yaml 并填写实际配置
+
+# ==================== 基础配置 ====================
+bot:
+  name: "我的 QQ 机器人"
+  qq_id: ""  # 机器人 QQ 号
+  admin_qq: ""  # 管理员 QQ 号
+  debug: false  # 生产环境建议设为 false
+
+# ==================== napcat WebSocket 配置 ====================
+websocket:
+  url: "ws://localhost:3002"
+  access_token: ""  # NapCat WebSocket Token
+  heartbeat_interval: 30000  # 心跳间隔（毫秒）
+  reconnect_interval: 5000   # 重连间隔（毫秒）
+  extra_headers: {}
+
+# ==================== napcat HTTP API 配置 ====================
+http_api:
+  base_url: "http://localhost:3001"  # NapCat HTTP API 地址
+  access_token: ""  # NapCat HTTP API Token
+  timeout: 30  # 请求超时（秒）
+  enabled: true  # 是否启用 HTTP API
+  retry_count: 3  # 重试次数
+  retry_delay: 1.0  # 重试延迟（秒）
+
+# ==================== HTTP 服务器配置 ====================
+http_server:
+  enabled: true           # 是否启用 HTTP 服务器
+  host: "127.0.0.1"       # 监听地址
+  port: 8080              # HTTPS端口
+  http_port: 8081         # HTTP端口（仅本地访问）
+  http_host: "127.0.0.1"  # HTTP监听地址
+  access_token: ""        # API 访问令牌（可选）
+  # SSL/HTTPS 配置（可选）
+  ssl_cert: null  # SSL 证书路径，如 "/path/to/fullchain.pem"
+  ssl_key: null   # SSL 密钥路径，如 "/path/to/privkey.pem"
+
+# ==================== 功能开关 ====================
+features:
+  whitelist_filter: true   # 白名单过滤
+  poke_reply: true         # 戳一戳回复
+  mention_bot: true        # @机器人检测
+
+# ==================== 白名单配置 ====================
+whitelist:
+  qq_users:
+    - 123456789  # 替换为实际的 QQ 号
+    # 添加更多允许的用户 QQ 号
+  groups:
+    - 123456789  # 替换为实际的群号
+    # 添加更多允许的群号
+
+# ==================== OpenCode 配置 ====================
+opencode:
+  host: "127.0.0.1"        # OpenCode 服务地址
+  port: 4091               # OpenCode 服务端口
+  directory: "/"           # 默认工作目录
+  timeout: 300
+  default_agent: "Sisyphus (Ultraworker)"  # 默认智能体（使用完整名称）
+  default_model: ""        # 默认模型
+  default_provider: ""     # 默认提供商
+  system_prompt: ""        # 系统提示词
+
+  # 排除的智能体列表（支持通配符 * 匹配）
+  excluded_agents:
+    - "qq-chat"
+    - "title"
+    - "summary"
+  
+  # 排除的模型列表（支持通配符 * 匹配）
+  excluded_models:
+    - "google/*"
+  
+  # 认证配置（如需要）
+  auth:
+    username: ""
+    password: ""
+    token: ""
+  
+  # Cookies（如需要）
+  cookies: {}
+
+# ==================== 会话管理配置 ====================
+session:
+  storage_type: "file"  # memory 或 file
+  file_path: "data/sessions.json"
+  max_sessions_per_user: 100
+
+# ==================== 日志配置 ====================
+logging:
+  log_file: "logs/onebot_client.log"
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  console_format: "[%(asctime)s] %(levelname)s - %(message)s"
+  date_format: "%H:%M:%S"
+  
+  file_handler:
+    enabled: true
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+    encoding: "utf-8"
+  
+  console_handler:
+    enabled: true
+  
+  error_log_separate:
+    enabled: true
+    error_log_file: "logs/onebot_client_error.log"
+    max_bytes: 5242880  # 5MB
+    backup_count: 3
+
+# ==================== 文件处理配置 ====================
+file_handling:
+  download_dir: "downloads"
+  auto_download: true
+  max_file_size: 52428800  # 50MB
+  allowed_extensions: []  # 空列表表示允许所有类型
+  naming_strategy: "original"  # original, timestamp, random
+  cleanup_old_files: true
+  cleanup_days: 7
+  napcat_temp_dir: ""  # NapCat 临时文件目录（WSL 用户需配置）
+  download_wait_time: 2  # 秒
+  continue_on_download_fail: true
+  include_file_path_in_message: true
+  file_message_prefix: "用户发送了一个文件，文件路径："
+
+# ==================== 特殊回复配置 ====================
+special_replies:
+  enabled: false
+  keywords: {}
+
+# ==================== 消息处理配置 ====================
+message:
+  max_length: 10000
+  stream_response: true
+  retry_count: 3
+  retry_delay: 1000  # 毫秒
+
+# ==================== 定时任务调度器配置 ====================
+task_scheduler:
+  check_interval: 5  # 检查间隔（秒）
