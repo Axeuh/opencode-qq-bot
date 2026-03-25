@@ -1,64 +1,64 @@
-# OpenCode Client Module
+# OpenCode 客户端模块
 
-**Generated:** 2026-03-24
-**Modules:** 7 Python files
-**Purpose:** OpenCode AI platform integration
+**生成日期:** 2026-03-25
+**模块数:** 7 Python 文件
+**用途:** OpenCode AI 平台集成
 
-## STRUCTURE
+## 目录结构
 
 ```
 opencode/
 ├── __init__.py
-├── types.py             # Type definitions (165 lines)
-├── client.py            # Base HTTP client (276 lines)
-├── opencode_client.py   # Composite client (300 lines)
-├── session_api.py       # Session API (409 lines)
-├── message_api.py       # Message API (245 lines)
-└── model_api.py         # Model/Agent API (165 lines)
+├── types.py             # 类型定义 (165 行)
+├── client.py            # 基础 HTTP 客户端 (276 行)
+├── opencode_client.py   # 组合客户端 (300 行)
+├── session_api.py       # 会话 API (409 行)
+├── message_api.py       # 消息 API (245 行)
+└── model_api.py         # 模型/智能体 API (165 行)
 ```
 
-## API MODULES
+## API 模块
 
-| Module | Class | Methods |
+| 模块 | 类名 | 方法 |
 |--------|-------|---------|
 | `session_api.py` | SessionAPI | create_session, abort_session, revert_last_message, list_sessions |
 | `message_api.py` | MessageAPI | send_message, execute_command |
 | `model_api.py` | ModelAPI | get_models, get_agents, list_commands |
 
-## WHERE TO LOOK
+## 查找指南
 
-| Task | Location |
+| 任务 | 位置 |
 |------|----------|
-| Add new API method | Create in appropriate *_api.py |
-| Modify session handling | session_api.py |
-| Modify message sending | message_api.py |
-| Modify model listing | model_api.py |
-| Type definitions | types.py |
+| 添加新 API 方法 | 在对应的 *_api.py 中创建 |
+| 修改会话处理 | session_api.py |
+| 修改消息发送 | message_api.py |
+| 修改模型列表 | model_api.py |
+| 类型定义 | types.py |
 
-## USAGE
+## 使用示例
 
 ```python
 from src.opencode import OpenCodeClient
 
 client = OpenCodeClient()
-session_id, error = await client.create_session("Title")
-response, error = await client.send_message("Hello", session_id)
+session_id, error = await client.create_session("标题")
+response, error = await client.send_message("你好", session_id)
 models, error = await client.get_models()
 await client.close()
 ```
 
-## COMPOSITION PATTERN
+## 组合模式
 
 ```
-OpenCodeClient (composite)
+OpenCodeClient (组合)
     ├── _session_api: SessionAPI
     ├── _message_api: MessageAPI
     └── _model_api: ModelAPI
 ```
 
-## CONVENTIONS
+## 编码规范
 
-- All API methods return `(result, error)` tuple
-- Use `_send_request()` from base client
-- Async/await for all network operations
-- Close client with `await client.close()`
+- 所有 API 方法返回 `(result, error)` 元组
+- 使用基础客户端的 `_send_request()`
+- 所有网络操作使用 async/await
+- 使用 `await client.close()` 关闭客户端

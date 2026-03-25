@@ -650,6 +650,39 @@ class HTTPCallbackHandler:
             logger.error(f"HTTP 热重载请求处理失败: {e}")
             return {"success": False, "error": str(e)}
     
+    async def handle_get_all_sessions_status(self) -> Dict[str, Any]:
+        """获取所有会话的状态"""
+        import time
+        
+        if not self.session_manager:
+            return {}
+        
+        result = {}
+        now = time.time()
+        
+        try:
+            for user_id, session in self.session_manager.user_sessions.items():
+                if not session or not session.session_id:
+                    continue
+                
+                session_status = {
+                    "user_id": user_id,
+                    "session_id": session.session_id,
+                    "title": session.title or "",
+                    "is_active": session.is_active,
+                    "last_accessed": session.last_accessed,
+                    "last_accessed_ago": int(now - session.last_accessed) if session.last_accessed else None,
+                    "message_count": session.message_count,
+                    "created_at": session.created_at,
+                    "group_id": session.group_id
+                }
+                result[session.session_id] = session_status
+                
+        except Exception as e:
+            logger.error(f"获取所有会话状态失败: {e}")
+        
+        return result
+    
     # ==================== 回调字典生成 ====================
     
     def get_callbacks(self) -> Dict[str, Any]:
@@ -676,6 +709,7 @@ class HTTPCallbackHandler:
             'delete_session_callback': self.handle_delete_session,
             'set_session_title_callback': self.handle_set_session_title,
             'update_session_tokens_callback': self.handle_update_session_tokens,
+            'get_all_sessions_status_callback': self.handle_get_all_sessions_status,
             # Directory 回调
             'get_directory_callback': self.handle_get_directory,
             'set_directory_callback': self.handle_set_directory

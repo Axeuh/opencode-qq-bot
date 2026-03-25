@@ -7,6 +7,7 @@ OpenCode 消息转发器
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Callable, Awaitable
 
@@ -227,17 +228,30 @@ class OpenCodeForwarder:
         system_prompt_enabled: bool,
         system_prompt_text: str
     ) -> str:
-        """构建要发送的消息"""
+        """构建要发送的消息 (JSON格式)"""
         display_name = user_name or f"QQ用户_{user_id}"
+        
+        # 构建JSON前缀数据
+        prefix_data = {
+            "type": "qq_message",
+            "message_type": message_type,
+            "user_qq": str(user_id),
+            "group_id": str(group_id) if group_id else None,
+            "user_name": display_name,
+            "session_id": session_id,
+        }
+        
+        # 构建hint
+        if message_type == "group" and group_id:
+            prefix_data["hint"] = f"用户({display_name}, QQ: {user_id})在QQ群({group_id})发送了一条消息。请在群里@用户并回复。"
+        else:
+            prefix_data["hint"] = f"用户({display_name}, QQ: {user_id})发送了一条私聊消息。请私聊回复。"
+        
+        json_prefix = "<Axeuh_bot>\n" + json.dumps(prefix_data, ensure_ascii=False) + "\n</Axeuh_bot>\n"
         
         # 检查是否需要发送系统提示词
         if system_prompt_enabled and system_prompt_text and session and not session.system_prompt_sent:
-            if message_type == "group" and group_id:
-                user_info = f"[QQ用户 \"{user_id}\" 在QQ群 \"{group_id}\" 发送了一个消息, qq用户名称: \"{display_name}\", 会话ID: \"{session_id}\" ,你需要在群里at并回复]"
-            else:
-                user_info = f"[QQ用户 \"{user_id}\" 发送了一个消息，请私聊回复, qq用户名称: \"{display_name}\" , 会话ID: \"{session_id}\"]"
-            
-            message_to_send = f"系统提示词: {system_prompt_text}\n\n{user_info}\n用户消息: {plain_text}"
+            message_to_send = f"系统提示词: {system_prompt_text}\n\n{json_prefix}{plain_text}"
             logger.info(f"首次消息，包含系统提示词，会话ID: {session_id}")
             
             # 更新会话状态
@@ -248,10 +262,7 @@ class OpenCodeForwarder:
                 except Exception as e:
                     logger.warning(f"保存会话状态失败（不影响当前功能）: {e}")
         else:
-            if message_type == "group" and group_id:
-                message_to_send = f"[QQ用户 \"{user_id}\" 在QQ群 \"{group_id}\" 发送了一个消息, qq用户名称: \"{display_name}\", 会话ID: \"{session_id}\" ,你需要在群里at并回复]\n{plain_text}"
-            else:
-                message_to_send = f"[QQ用户 \"{user_id}\" 发送了一个消息，请私聊回复, qq用户名称: \"{display_name}\" , 会话ID: \"{session_id}\"]\n{plain_text}"
+            message_to_send = f"{json_prefix}{plain_text}"
         
         return message_to_send
     

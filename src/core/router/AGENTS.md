@@ -1,44 +1,44 @@
-# Message Router Module
+# 消息路由模块
 
-**Generated:** 2026-03-24
-**Modules:** 3 Python files
-**Purpose:** Message routing and processing
+**生成日期:** 2026-03-25
+**模块数:** 3 Python 文件
+**用途:** 消息路由和处理
 
-## STRUCTURE
+## 目录结构
 
 ```
 router/
-├── message_router.py    # Routing logic (450 lines)
-├── message_processor.py # Processing helpers (471 lines)
+├── message_router.py    # 路由逻辑 (450 行)
+├── message_processor.py # 处理辅助 (471 行)
 └── __init__.py
 ```
 
-## ROUTING FLOW
+## 路由流程
 
 ```
-Message received
-    → is_whitelisted? (check user/group)
-    → is_command? (starts with /)
-    → Yes: CommandSystem.handle_command()
-    → No: OpenCodeForwarder.send_to_opencode()
+收到消息
+    → is_whitelisted? (检查用户/群)
+    → is_command? (以 / 开头)
+    → 是: CommandSystem.handle_command()
+    → 否: OpenCodeForwarder.send_to_opencode()
 ```
 
-## KEY CLASSES
+## 核心类
 
-| Class | Purpose |
+| 类名 | 用途 |
 |-------|---------|
-| `MessageRouter` | Main router, whitelist check |
-| `MessageProcessor` | Message preprocessing |
+| `MessageRouter` | 主路由器，白名单检查 |
+| `MessageProcessor` | 消息预处理 |
 
-## WHERE TO LOOK
+## 查找指南
 
-| Task | Location |
+| 任务 | 位置 |
 |------|----------|
-| Add routing rule | message_router.py |
-| Modify whitelist | message_router.py |
-| Preprocess messages | message_processor.py |
+| 添加路由规则 | message_router.py |
+| 修改白名单 | message_router.py |
+| 预处理消息 | message_processor.py |
 
-## WHITELIST CHECK
+## 白名单检查
 
 ```python
 def should_process_message(user_id, group_id):
@@ -47,8 +47,8 @@ def should_process_message(user_id, group_id):
     return user_id in USER_WHITELIST
 ```
 
-## CONVENTIONS
+## 编码规范
 
-- Return `True` if handled locally (command)
-- Return `False` to forward to OpenCode
-- Check whitelist before any processing
+- 本地处理返回 `True` (命令)
+- 转发到 OpenCode 返回 `False`
+- 处理前先检查白名单

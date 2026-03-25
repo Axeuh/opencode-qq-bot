@@ -20,6 +20,7 @@ from .task_endpoints import TaskEndpoints
 from .config_endpoints import ConfigEndpoints
 from .upload_handler import UploadHandler
 from .opencode_proxy import OpenCodeProxy
+from .process_endpoints import ProcessEndpoints
 from .routes import RouteSetup, log_routes_info
 
 logger = logging.getLogger(__name__)
@@ -61,9 +62,15 @@ class HTTPServer:
         set_session_title_callback: Optional[Callable[[int, str, str], Awaitable[Dict[str, Any]]]] = None,
         # Session Tokens 回调
         update_session_tokens_callback: Optional[Callable[[int, str, Dict[str, int]], Awaitable[Dict[str, Any]]]] = None,
+        # Session Status 回调
+        get_all_sessions_status_callback: Optional[Callable[[], Awaitable[Dict[str, Any]]]] = None,
         # Directory 回调
         get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
-        set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None
+        set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
+        # Session Manager
+        session_manager: Optional[Any] = None,
+        # Process Manager
+        process_manager: Optional[Any] = None
     ):
         """初始化 HTTP 服务器
 
@@ -91,6 +98,8 @@ class HTTPServer:
             update_session_tokens_callback: 更新会话tokens回调函数（异步），参数(user_id, session_id, tokens)，返回执行结果
             get_directory_callback: 获取目录回调函数（异步），参数(user_id)，返回目录信息
             set_directory_callback: 设置目录回调函数（异步），参数(user_id, directory, session_id)，返回执行结果
+            session_manager: 会话管理器实例
+            process_manager: 进程管理器实例
         """
         self.host = host
         self.port = port
@@ -115,8 +124,11 @@ class HTTPServer:
         self.delete_session_callback = delete_session_callback
         self.set_session_title_callback = set_session_title_callback
         self.update_session_tokens_callback = update_session_tokens_callback
+        self.get_all_sessions_status_callback = get_all_sessions_status_callback
         self.get_directory_callback = get_directory_callback
         self.set_directory_callback = set_directory_callback
+        self.session_manager = session_manager
+        self.process_manager = process_manager
 
         # 服务器状态
         self.app: Optional[web.Application] = None
@@ -124,6 +136,7 @@ class HTTPServer:
         self.site: Optional[web.TCPSite] = None
         self.http_site: Optional[web.TCPSite] = None
         self._running = False
+        self._sse_running = True  # SSE 监听状态
         
         # 加载白名单配置
         self._whitelist: List[int] = []
@@ -156,6 +169,7 @@ class HTTPServer:
             delete_session_callback=self.delete_session_callback,
             set_session_title_callback=self.set_session_title_callback,
             update_session_tokens_callback=self.update_session_tokens_callback,
+            get_all_sessions_status_callback=self.get_all_sessions_status_callback,
         )
         
         # 任务端点处理器
@@ -183,6 +197,12 @@ class HTTPServer:
         # OpenCode代理处理器
         self.opencode_proxy = OpenCodeProxy(
             get_directory_callback=self.get_directory_callback,
+            session_manager=self.session_manager,
+        )
+        
+        # 进程控制端点处理器
+        self.process_endpoints = ProcessEndpoints(
+            process_manager=self.process_manager
         )
         
         # 路由设置器
@@ -193,6 +213,7 @@ class HTTPServer:
             config_endpoints=self.config_endpoints,
             upload_handler=self.upload_handler,
             opencode_proxy=self.opencode_proxy,
+            process_endpoints=self.process_endpoints,
         )
 
     async def start(self) -> None:
@@ -268,6 +289,18 @@ class HTTPServer:
     def is_running(self) -> bool:
         """检查服务器是否在运行"""
         return self._running
+    
+    # ==================== SSE 监听控制 ====================
+    
+    def stop_sse_listening(self):
+        """停止 SSE 监听"""
+        self._sse_running = False
+        logger.info("已设置 SSE 停止标志")
+    
+    def start_sse_listening(self):
+        """开始 SSE 监听"""
+        self._sse_running = True
+        logger.info("已清除 SSE 停止标志")
 
 
 if __name__ == "__main__":

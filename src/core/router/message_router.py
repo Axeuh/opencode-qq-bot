@@ -37,7 +37,8 @@ class MessageRouter:
         command_system: Optional[CommandSystem],
         send_reply_callback: Callable[[str, Optional[int], Optional[int], str], Awaitable[None]],
         get_quoted_message_callback: Callable[[Union[int, str]], Awaitable[Optional[Dict[str, Any]]]],
-        opencode_available: bool = True
+        opencode_available: bool = True,
+        session_manager: Optional[Any] = None
     ):
         """初始化消息路由器
         
@@ -49,6 +50,7 @@ class MessageRouter:
             send_reply_callback: 发送回复的回调函数，参数：(message_type, user_id, group_id, message)
             get_quoted_message_callback: 获取引用消息完整数据的回调函数，参数：(message_id) -> 消息数据字典
             opencode_available: OpenCode 集成是否可用，默认为 True
+            session_manager: 会话管理器实例
         """
         self.file_handler = file_handler
         self.message_queue_processor = message_queue_processor
@@ -57,6 +59,7 @@ class MessageRouter:
         self.send_reply_callback = send_reply_callback
         self.get_quoted_message_callback = get_quoted_message_callback
         self.opencode_available = opencode_available
+        self.session_manager = session_manager
         
         # 创建消息处理器
         http_client = getattr(file_handler, 'http_client', None)
@@ -279,16 +282,23 @@ class MessageRouter:
         
         # 处理引用消息
         raw_message = await self._process_quoted_message(
-            message, message_type, group_id, user_id, raw_message
+            message, message_type, group_id, user_id, raw_message, user_name
         )
         
         # 检查消息是否包含文件
         file_info_list = extract_file_info(raw_message)
         has_files = len(file_info_list) > 0
         
+        # 获取会话ID
+        session_id = None
+        if self.session_manager and user_id:
+            user_session = self.session_manager.get_user_session(user_id)
+            if user_session:
+                session_id = user_session.session_id
+        
         # 处理特殊消息类型和文件
         processed_text = await self._process_files_and_special(
-            raw_message, message_type, group_id, user_id, message, file_info_list
+            raw_message, message_type, group_id, user_id, message, file_info_list, user_name, session_id
         )
         
         # 提取纯文本消息（去除CQ码）
@@ -338,7 +348,8 @@ class MessageRouter:
         message_type: str,
         group_id: Optional[int],
         user_id: Optional[int],
-        raw_message: str
+        raw_message: str,
+        user_name: str = ""
     ) -> str:
         """处理引用消息，返回更新后的 raw_message"""
         quoted_msg_id = extract_quoted_message_id(message)
@@ -358,6 +369,13 @@ class MessageRouter:
         # 使用 get_msg API 获取完整消息数据
         quoted_message_data = await self.get_quoted_message_callback(quoted_msg_id_for_api)
         
+        # 获取会话ID
+        session_id = None
+        if self.session_manager and user_id:
+            user_session = self.session_manager.get_user_session(user_id)
+            if user_session:
+                session_id = user_session.session_id
+        
         # 使用 MessageProcessor 处理引用消息
         quoted_content, quoted_files_info = await self.processor.process_quoted_message(
             quoted_msg_id_for_api, quoted_message_data, group_id, user_id
@@ -372,7 +390,7 @@ class MessageRouter:
                 quoted_content = "[非文本消息]"
         
         # 构建前缀
-        quoted_prefix = self.processor.build_quoted_prefix(quoted_content, quoted_files_info, user_id, group_id)
+        quoted_prefix = self.processor.build_quoted_prefix(quoted_content, quoted_files_info, user_id, group_id, user_name, session_id)
         
         if quoted_prefix:
             raw_message = quoted_prefix + raw_message
@@ -386,7 +404,9 @@ class MessageRouter:
         group_id: Optional[int],
         user_id: Optional[int],
         message: Dict,
-        file_info_list: List[Dict]
+        file_info_list: List[Dict],
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> Optional[str]:
         """处理文件和特殊消息类型"""
         # 处理特殊消息类型（如合并转发、音乐、分享等）
@@ -403,7 +423,7 @@ class MessageRouter:
         if remaining_file_info:
             logger.info(f"准备处理文件消息，forward消息数量: {len([fi for fi in remaining_file_info if fi.get('type') == 'forward'])}")
             logger.info(f"传递给process_file_message的message参数类型: {type(message)}, 包含的键: {list(message.keys())}")
-            processed_text = await self.file_handler.process_file_message(raw_message, message_type, group_id, user_id, message)
+            processed_text = await self.file_handler.process_file_message(raw_message, message_type, group_id, user_id, message, user_name, session_id)
         
         # 如果有特殊消息，将其添加到处理后的文本中
         if special_messages:
@@ -427,9 +447,16 @@ class MessageRouter:
         # 检查消息是否包含文件
         file_info_list = extract_file_info(raw_message)
         
+        # 获取会话ID
+        session_id = None
+        if self.session_manager and user_id:
+            user_session = self.session_manager.get_user_session(user_id)
+            if user_session:
+                session_id = user_session.session_id
+        
         # 处理特殊消息类型和文件
         processed_text = await self._process_files_and_special(
-            raw_message, message_type, group_id, user_id, message, file_info_list
+            raw_message, message_type, group_id, user_id, message, file_info_list, user_name, session_id
         )
         
         # 提取@后的纯文本

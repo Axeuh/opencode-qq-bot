@@ -128,7 +128,9 @@ class FileHandler:
         message_type: str,
         group_id: Optional[int] = None,
         user_id: Optional[int] = None,
-        original_message: Optional[Dict[str, Any]] = None
+        original_message: Optional[Dict[str, Any]] = None,
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """处理文件消息，返回要转发给OpenCode的文本
         
@@ -138,6 +140,8 @@ class FileHandler:
             group_id: 群号（如果是群消息）
             user_id: 发送文件的用户QQ号
             original_message: 原始消息字典（可选）
+            user_name: 用户昵称
+            session_id: OpenCode会话ID
             
         Returns:
             处理后的消息文本
@@ -155,7 +159,7 @@ class FileHandler:
         # 处理每个文件
         for file_info in file_info_list:
             file_msg = await self._process_single_file(
-                file_info, group_id, user_id, original_message
+                file_info, group_id, user_id, original_message, user_name, session_id
             )
             if file_msg:
                 processed_messages.append(file_msg)
@@ -265,7 +269,9 @@ class FileHandler:
         file_info: Dict[str, Any],
         group_id: Optional[int],
         user_id: Optional[int],
-        original_message: Optional[Dict[str, Any]]
+        original_message: Optional[Dict[str, Any]],
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> Optional[str]:
         """处理单个文件
         
@@ -274,6 +280,8 @@ class FileHandler:
             group_id: 群号
             user_id: 用户 QQ 号
             original_message: 原始消息字典
+            user_name: 用户昵称
+            session_id: OpenCode会话ID
             
         Returns:
             处理后的消息文本
@@ -284,23 +292,25 @@ class FileHandler:
         
         # 图片消息处理
         if file_type == "image":
-            return await self._process_image_file(file_info, group_id, user_id, filename)
+            return await self._process_image_file(file_info, group_id, user_id, filename, user_name, session_id)
         
         # 合并转发消息处理
         if file_type == "forward":
             return await self._process_forward_message(
-                file_info, group_id, user_id, original_message
+                file_info, group_id, user_id, original_message, user_name, session_id
             )
         
         # 其他文件类型处理
-        return await self._process_other_file(file_info, group_id, user_id, filename, file_id)
+        return await self._process_other_file(file_info, group_id, user_id, filename, file_id, user_name, session_id)
     
     async def _process_image_file(
         self,
         file_info: Dict[str, Any],
         group_id: Optional[int],
         user_id: Optional[int],
-        filename: str
+        filename: str,
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """处理图片文件 (JSON格式输出)"""
         import json
@@ -317,7 +327,9 @@ class FileHandler:
                 "status": "downloaded",
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
-                "hint": f"用户(QQ: {user_id})发送了一张图片，文件名: {filename}，已下载到本地路径: {local_path}。如果需要分析图片内容，可以使用图片路径。"
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
+                "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一张图片，文件名: {filename}，已下载到本地路径: {local_path}。如果需要分析图片内容，可以使用图片路径。"
             }
             file_msg = "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
             logger.info(f"图片下载成功：{filename} -> {local_path}")
@@ -330,7 +342,9 @@ class FileHandler:
                 "status": "download_failed",
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
-                "hint": f"用户(QQ: {user_id})发送了一张图片，文件名: {filename}，但下载失败。如有URL可尝试通过URL访问。"
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
+                "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一张图片，文件名: {filename}，但下载失败。如有URL可尝试通过URL访问。"
             }
             file_msg = "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
             logger.warning(f"图片下载失败但仍继续处理：{filename}")
@@ -345,7 +359,9 @@ class FileHandler:
         file_info: Dict[str, Any],
         group_id: Optional[int],
         user_id: Optional[int],
-        original_message: Optional[Dict[str, Any]]
+        original_message: Optional[Dict[str, Any]],
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """处理合并转发消息 (JSON格式输出)"""
         import json
@@ -357,12 +373,12 @@ class FileHandler:
         
         if forward_messages:
             return await self._parse_forward_messages(
-                forward_messages, forward_id, group_id, user_id
+                forward_messages, forward_id, group_id, user_id, user_name, session_id
             )
         
         # 回退到 XML 解析
         return await self._fallback_xml_parse(
-            forward_id, params, original_message, forward_id, group_id, user_id
+            forward_id, params, original_message, forward_id, group_id, user_id, user_name, session_id
         )
     
     async def _get_forward_messages(self, forward_id: str) -> Optional[List[Dict[str, Any]]]:
@@ -402,7 +418,9 @@ class FileHandler:
         forward_messages: List[Dict[str, Any]],
         forward_id: str,
         group_id: Optional[int],
-        user_id: Optional[int]
+        user_id: Optional[int],
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """解析合并转发消息列表 (JSON格式输出)"""
         import json
@@ -427,7 +445,7 @@ class FileHandler:
         
         if parsed_messages:
             # 构建hint
-            hint_text = f"用户(QQ: {user_id})发送了一个合并转发消息，共{len(parsed_messages)}条消息。"
+            hint_text = f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个合并转发消息，共{len(parsed_messages)}条消息。"
             if downloaded_files:
                 hint_text += f"其中包含{len(downloaded_files)}个附件已下载。"
             hint_text += "请根据转发消息的内容进行回复。"
@@ -443,6 +461,8 @@ class FileHandler:
                 ] if downloaded_files else [],
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
                 "hint": hint_text
             }
             logger.info(f"合并转发消息解析成功: {len(parsed_messages)}条消息, 下载{len(downloaded_files)}个文件")
@@ -454,7 +474,9 @@ class FileHandler:
             "status": "empty",
             "user_qq": str(user_id) if user_id else None,
             "group_id": str(group_id) if group_id else None,
-            "hint": f"用户(QQ: {user_id})发送了一个合并转发消息，但内容为空或无法解析。"
+            "user_name": user_name if user_name else None,
+            "session_id": session_id,
+            "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个合并转发消息，但内容为空或无法解析。"
         }, ensure_ascii=False) + "\n</Axeuh_bot>"
     
     async def _parse_forward_message_items(
@@ -543,7 +565,9 @@ class FileHandler:
         original_message: Optional[Dict[str, Any]],
         default_forward_id: str,
         group_id: Optional[int] = None,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """回退到 XML 解析 (JSON格式输出)"""
         import json
@@ -556,7 +580,7 @@ class FileHandler:
                 titles = self._extract_titles_from_xml(xml_content)
                 
                 if titles:
-                    return self._build_forward_message_from_titles(titles, user_id, group_id)
+                    return self._build_forward_message_from_titles(titles, user_id, group_id, user_name, session_id)
             except Exception as e:
                 logger.debug(f"XML解析转发消息失败: {e}")
         else:
@@ -570,7 +594,9 @@ class FileHandler:
             "source": "fallback",
             "user_qq": str(user_id) if user_id else None,
             "group_id": str(group_id) if group_id else None,
-            "hint": f"用户(QQ: {user_id})发送了一个合并转发消息(ID: {default_forward_id})，但无法解析具体内容。"
+            "user_name": user_name if user_name else None,
+            "session_id": session_id,
+            "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个合并转发消息(ID: {default_forward_id})，但无法解析具体内容。"
         }, ensure_ascii=False) + "\n</Axeuh_bot>"
     
     def _extract_xml_content(
@@ -615,7 +641,7 @@ class FileHandler:
         
         return []
     
-    def _build_forward_message_from_titles(self, titles: List[str], user_id: Optional[int] = None, group_id: Optional[int] = None) -> str:
+    def _build_forward_message_from_titles(self, titles: List[str], user_id: Optional[int] = None, group_id: Optional[int] = None, user_name: str = "", session_id: Optional[str] = None) -> str:
         """从标题构建转发消息 (JSON格式输出)"""
         import json
         def clean_title_text(text: str) -> str:
@@ -631,18 +657,22 @@ class FileHandler:
             "content_preview": cleaned_titles[1:] if len(cleaned_titles) > 1 else [],
             "user_qq": str(user_id) if user_id else None,
             "group_id": str(group_id) if group_id else None,
-            "hint": f"用户(QQ: {user_id})发送了一个合并转发消息，主标题: {titles[0] if titles else '未知'}。请根据转发消息的内容进行回复。"
+            "user_name": user_name if user_name else None,
+            "session_id": session_id,
+            "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个合并转发消息，主标题: {titles[0] if titles else '未知'}。请根据转发消息的内容进行回复。"
         }
         
         return "<Axeuh_bot>\n" + json.dumps(forward_data, ensure_ascii=False) + "\n</Axeuh_bot>"
     
-async def _process_other_file(
+    async def _process_other_file(
         self,
         file_info: Dict[str, Any],
         group_id: Optional[int],
         user_id: Optional[int],
         filename: str,
-        file_id: str
+        file_id: str,
+        user_name: str = "",
+        session_id: Optional[str] = None
     ) -> str:
         """处理其他文件类型 (JSON格式输出)"""
         import json
@@ -659,7 +689,9 @@ async def _process_other_file(
                 "reason": "auto_download_disabled",
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
-                "hint": f"用户(QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，但未自动下载。如有需要可以请求下载。"
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
+                "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，但未自动下载。如有需要可以请求下载。"
             }
             logger.info(f"跳过文件下载: {filename} (配置为不自动下载)")
             return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
@@ -676,7 +708,9 @@ async def _process_other_file(
                 "status": "downloaded",
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
-                "hint": f"用户(QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，已下载到本地路径: {local_path}。如需处理文件内容，可以使用该路径。"
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
+                "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，已下载到本地路径: {local_path}。如需处理文件内容，可以使用该路径。"
             }
             logger.info(f"文件信息已添加到消息: {filename} -> {local_path}")
             return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
@@ -691,7 +725,9 @@ async def _process_other_file(
                 "status": "download_failed",
                 "user_qq": str(user_id) if user_id else None,
                 "group_id": str(group_id) if group_id else None,
-                "hint": f"用户(QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，但下载失败。"
+                "user_name": user_name if user_name else None,
+                "session_id": session_id,
+                "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})发送了一个{file_type}文件，文件名: {filename}，但下载失败。"
             }
             logger.warning(f"文件下载失败但仍继续处理：{filename}")
             return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"

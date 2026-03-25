@@ -38,6 +38,7 @@ class SessionEndpoints:
         delete_session_callback: Optional[Callable[[int, str], Awaitable[Dict[str, Any]]]] = None,
         set_session_title_callback: Optional[Callable[[int, str, str], Awaitable[Dict[str, Any]]]] = None,
         update_session_tokens_callback: Optional[Callable[[int, str, Dict[str, int]], Awaitable[Dict[str, Any]]]] = None,
+        get_all_sessions_status_callback: Optional[Callable[[], Awaitable[Dict[str, Any]]]] = None,
     ):
         """初始化会话端点处理器
         
@@ -48,6 +49,7 @@ class SessionEndpoints:
             delete_session_callback: 删除会话回调
             set_session_title_callback: 设置会话标题回调
             update_session_tokens_callback: 更新会话tokens回调
+            get_all_sessions_status_callback: 获取所有会话状态回调
         """
         self.get_user_sessions_callback = get_user_sessions_callback
         self.switch_session_callback = switch_session_callback
@@ -55,6 +57,7 @@ class SessionEndpoints:
         self.delete_session_callback = delete_session_callback
         self.set_session_title_callback = set_session_title_callback
         self.update_session_tokens_callback = update_session_tokens_callback
+        self.get_all_sessions_status_callback = get_all_sessions_status_callback
     
     async def handle_session_list(self, request: web.Request) -> web.Response:
         """获取用户会话列表 (POST)"""
@@ -435,6 +438,40 @@ class SessionEndpoints:
 
         except Exception as e:
             logger.error(f"更新会话tokens失败: {e}")
+            return web.json_response({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+    
+    async def handle_sessions_status(self, request: web.Request) -> web.Response:
+        """获取所有会话的状态 (GET)
+        
+        返回格式: { [sessionID: string]: SessionStatus }
+        
+        SessionStatus 包含:
+        - user_id: 用户ID
+        - user_name: 用户名称（如果有）
+        - is_active: 是否活跃
+        - last_accessed: 最后访问时间
+        - message_count: 消息数量
+        - title: 会话标题
+        """
+        try:
+            if not self.get_all_sessions_status_callback:
+                return web.json_response({
+                    "success": False,
+                    "error": "Get sessions status callback not configured"
+                }, status=500)
+            
+            result = await self.get_all_sessions_status_callback()
+            
+            return web.json_response({
+                "success": True,
+                "sessions": result
+            })
+            
+        except Exception as e:
+            logger.error(f"获取会话状态失败: {e}")
             return web.json_response({
                 "success": False,
                 "error": str(e)

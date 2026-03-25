@@ -211,6 +211,13 @@ def create_auth_middleware(auth: AuthMiddleware) -> Callable:
         if not request.path.startswith("/api/"):
             return await handler(request)
         
+        # 检查是否来自本地（127.0.0.1或localhost），本地访问跳过认证
+        client_host = request.remote or ""
+        if client_host in ("127.0.0.1", "::1", "localhost"):
+            # 本地访问，跳过认证
+            request["user_id"] = None
+            return await handler(request)
+        
         # 需要认证的API端点
         is_authenticated, user_id = auth.check_auth(request)
         

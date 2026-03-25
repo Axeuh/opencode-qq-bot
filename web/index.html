@@ -36,12 +36,19 @@
             font-family: 'Nunito', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         }
 
+        html {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+
         body {
             height: 100vh;
             background-color: var(--bg-light);
             display: flex;
             color: var(--text-main);
             overflow: hidden;
+            overflow-x: hidden;
+            max-width: 100vw;
             touch-action: manipulation;
         }
 
@@ -170,6 +177,7 @@
         .message-flow {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             display: flex;
             flex-direction: column;
             scroll-behavior: smooth;
@@ -285,32 +293,39 @@
         .message-content {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             padding: 24px 80px;
             display: flex;
             flex-direction: column;
             gap: 24px;
+            box-sizing: border-box;
         }
 
         /* -- 用户消息 -- */
-        .msg-user-wrap { align-self: flex-end; max-width: 75%; display: flex; flex-direction: column; align-items: flex-end; }
+        .msg-user-wrap { align-self: flex-end; max-width: 75%; display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
         .msg-user-bubble {
             background: var(--primary-blue); color: white; padding: 12px 18px;
             border-radius: 16px 16px 4px 16px; font-size: 14px; line-height: 1.6;
-            box-shadow: 0 4px 10px rgba(137, 207, 240, 0.3); word-break: break-all;
+            box-shadow: 0 4px 10px rgba(137, 207, 240, 0.3); 
+            word-break: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
         }
         .msg-user-info { font-size: 11px; color: #9aa5b1; margin-top: 6px; }
 
         /* -- AI回复区域 -- */
         .msg-ai-wrap {
             align-self: flex-start;
-            width: 100%; /* 占满可用空间(已扣除80px边距) */
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
             display: flex; align-items: flex-start; gap: 16px;
         }
         .ai-avatar {
             width: 36px; height: 36px; border-radius: 50%; border: 2px solid white;
             box-shadow: var(--shadow-sm); flex-shrink: 0; background: #fff;
         }
-        .ai-content { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .ai-content { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
         
         /* 思考区块: 无外框,无标题,纯文本+左侧边线 */
         .thought-block {
@@ -410,7 +425,7 @@
         .tool-header:hover { background: #f5f7fa; }
         .tool-icon { margin-right: 8px; color: var(--primary-blue); width: 16px; text-align: center; flex-shrink: 0; }
         .tool-toggle-icon { transition: transform 0.3s; color: #b0bac5; flex-shrink: 0; }
-        .tool-body { padding: 14px; border-top: 1px solid var(--card-border); display: none; background: #fff; overflow-x: auto; }
+        .tool-body { padding: 14px; border-top: 1px solid var(--card-border); display: none; background: #fff; overflow-x: auto; max-width: 100%; }
         .tool-card.expanded .tool-body { display: block; }
         .tool-card.expanded .tool-toggle-icon { transform: rotate(180deg); }
 
@@ -847,6 +862,18 @@
         .markdown-content {
             line-height: 1.6;
             color: var(--text-main);
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .markdown-content pre {
+            max-width: 100%;
         }
         
         /* 标题样式 */
@@ -929,6 +956,7 @@
         /* 表格 */
         .markdown-content table {
             width: 100%;
+            max-width: 100%;
             border-collapse: collapse;
             margin: 0.8em 0;
             font-size: 0.9em;
@@ -963,6 +991,7 @@
             padding: 16px;
             margin: 0.8em 0;
             overflow-x: auto;
+            max-width: 100%;
             position: relative;
             border: 1px solid #e2e8f0;
         }
@@ -2138,9 +2167,9 @@
             if (!content) content = msg.content || '';
             
             // 删除前缀（网页不显示前缀）
-            // 前缀格式: [QQ用户 "xxx" 发送了一个消息，请私聊回复, qq用户名称: "xxx" , 会话ID: "xxx"]
-            // 使用更宽松的正则，匹配任意空白和逗号
-            const prefixPattern = /^\[QQ用户\s*"[^"]*"\s*发送了一个消息[，,]\s*请私聊回复[，,]\s*qq用户名称:\s*"[^"]*"\s*[，,]\s*会话ID:\s*"[^"]*"\]\s*/;
+            // 前缀格式: <Axeuh_bot>\n{JSON}\n</Axeuh_bot>\n
+            // 使用正则匹配JSON前缀标签
+            const prefixPattern = /^<Axeuh_bot>\s*\n?\s*\{[\s\S]*?\}\s*\n?\s*<\/Axeuh_bot>\s*\n?/;
             const originalContent = content;
             content = content.replace(prefixPattern, '');
             
@@ -2674,8 +2703,15 @@ ${escapeHtml(String(output).replace(/Exit Code:\s*\d+.*$/s, '').trim().substring
             renderMessages();
             
             try {
-                // 构建前缀（发送到API时添加，但网页不显示）
-                const prefix = `[QQ用户 "${AppState.userQQ}" 发送了一个消息，请私聊回复, qq用户名称: "${AppState.userName || AppState.userQQ}" , 会话ID: "${sessionId}"]\n\n`;
+                // 构建JSON前缀（发送到API时添加，但网页不显示）
+                const prefixData = {
+                    type: "web_message",
+                    user_qq: String(AppState.userQQ),
+                    user_name: AppState.userName || String(AppState.userQQ),
+                    session_id: sessionId,
+                    hint: `用户(${AppState.userName || AppState.userQQ}, QQ: ${AppState.userQQ})通过网页发送了一条消息。`
+                };
+                const prefix = `<Axeuh_bot>\n${JSON.stringify(prefixData, null, 0)}\n</Axeuh_bot>\n\n`;
                 
                 // 构建请求体，包含模型和智能体参数
                 const requestBody = {

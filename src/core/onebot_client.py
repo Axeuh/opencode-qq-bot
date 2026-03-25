@@ -31,6 +31,7 @@ from .http import HTTPServer
 from .http_callbacks import HTTPCallbackHandler
 from .task_executor import TaskExecutor
 from .lifecycle_manager import LifecycleManager
+from .process_manager import ProcessManager, init_process_manager
 
 # 配置日志
 setup_logging()
@@ -91,16 +92,19 @@ class OneBotClient:
         # 9. 初始化生命周期管理器
         self._init_lifecycle_manager()
         
-        # 10. 注册默认处理器
+        # 10. 初始化进程管理器
+        self._init_process_manager()
+        
+        # 11. 注册默认处理器
         self.lifecycle_manager.register_default_handlers()
         
-        # 11. 初始化 HTTP 服务器
+        # 12. 初始化 HTTP 服务器
         self._init_http_server()
         
-        # 12. 初始化定时任务调度器
+        # 13. 初始化定时任务调度器
         self._init_task_scheduler()
         
-        # 13. 初始化连接生命周期管理器
+        # 14. 初始化连接生命周期管理器
         self.connection_lifecycle = ConnectionLifecycle(
             connection_manager=self.connection_manager,
             message_queue_processor=self.message_queue_processor,
@@ -128,6 +132,9 @@ class OneBotClient:
         # HTTP 服务器和任务调度器
         self.http_server: Optional[HTTPServer] = None
         self.task_scheduler: Optional[Any] = None
+        
+        # 进程管理器
+        self.process_manager: Optional[ProcessManager] = None
     
     def _init_message_handlers(self):
         """初始化消息处理器"""
@@ -205,7 +212,8 @@ class OneBotClient:
             command_system=self.command_system,
             send_reply_callback=self.api_sender.send_reply,
             get_quoted_message_callback=self.api_sender.get_quoted_message_full,
-            opencode_available=self.opencode_available
+            opencode_available=self.opencode_available,
+            session_manager=self.session_manager
         )
     
     def _init_lifecycle_manager(self):
@@ -217,6 +225,20 @@ class OneBotClient:
             connection_manager=self.connection_manager,
             event_handlers=self.event_handlers
         )
+    
+    def _init_process_manager(self):
+        """初始化进程管理器"""
+        if not self.opencode_available:
+            logger.info("OpenCode 不可用，跳过进程管理器初始化")
+            return
+        
+        self.process_manager = init_process_manager(
+            opencode_port=config.OPENCODE_PORT,
+            session_manager=self.session_manager,
+            opencode_client=self.opencode_client
+        )
+        
+        logger.info(f"进程管理器已初始化，OpenCode 端口: {config.OPENCODE_PORT}")
     
     def _init_http_server(self):
         """初始化 HTTP 服务器"""
@@ -241,8 +263,20 @@ class OneBotClient:
             access_token=config.HTTP_SERVER_ACCESS_TOKEN,
             ssl_cert=config.HTTP_SERVER_SSL_CERT,
             ssl_key=config.HTTP_SERVER_SSL_KEY,
+            session_manager=self.session_manager,
+            process_manager=self.process_manager,
             **callbacks
         )
+        
+        # 设置进程管理器的 SSE 停止回调
+        if self.process_manager and self.http_server:
+            async def stop_sse_callback():
+                self.http_server.stop_sse_listening()
+                # 等待连接断开
+                import asyncio
+                await asyncio.sleep(2)
+            
+            self.process_manager.on_before_opencode_stop = stop_sse_callback
         
         # 显示服务器地址
         if config.HTTP_SERVER_SSL_CERT and config.HTTP_SERVER_SSL_KEY:
@@ -302,11 +336,59 @@ async def main():
     """主函数"""
     print(f"=== {config.BOT_NAME} Python客户端 ===")
     print(f"WebSocket服务器: {config.WS_URL}")
+    print(f"OpenCode端口: {config.OPENCODE_PORT}")
     print(f"自动回复功能: {'启用' if config.ENABLED_FEATURES.get('auto_reply') else '禁用'}")
     print("=" * 40)
     
     client = OneBotClient()
-    await client.connection_lifecycle.run()
+    
+    # 启动 OpenCode 进程（如果进程管理器可用）
+    if client.process_manager:
+        logger.info("启动 OpenCode 进程...")
+        result = await client.process_manager.start_opencode()
+        if result.get("success"):
+            logger.info("OpenCode 进程已启动")
+            # 启动进程监控
+            await client.process_manager.start_monitoring()
+            
+            # 检查是否有需要恢复的会话（Bot 重启后）
+            import os
+            import json
+            sessions_file = os.path.join(os.getcwd(), "data", "sessions_to_recover.json")
+            if os.path.exists(sessions_file):
+                try:
+                    with open(sessions_file, 'r', encoding='utf-8') as f:
+                        sessions_to_recover = json.load(f)
+                    
+                    if sessions_to_recover:
+                        logger.info(f"发现 {len(sessions_to_recover)} 个需要恢复的会话")
+                        # 等待 OpenCode API 就绪
+                        for i in range(10):
+                            if await client.process_manager._check_opencode_api_ready():
+                                break
+                            await asyncio.sleep(0.5)
+                        
+                        # 恢复会话
+                        recovery_result = await client.process_manager._recover_sessions(sessions_to_recover)
+                        logger.info(f"会话恢复结果: {recovery_result}")
+                    
+                    # 删除临时文件
+                    os.remove(sessions_file)
+                    logger.info("已删除会话恢复临时文件")
+                    
+                except Exception as e:
+                    logger.error(f"恢复会话失败: {e}")
+        else:
+            logger.warning(f"OpenCode 进程启动失败: {result.get('error')}")
+    
+    try:
+        await client.connection_lifecycle.run()
+    finally:
+        # 清理进程管理器
+        if client.process_manager:
+            logger.info("停止进程监控...")
+            await client.process_manager.stop_monitoring()
+            client.process_manager.cleanup()
 
 
 if __name__ == '__main__':

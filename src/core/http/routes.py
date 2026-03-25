@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .config_endpoints import ConfigEndpoints
     from .upload_handler import UploadHandler
     from .opencode_proxy import OpenCodeProxy
+    from .process_endpoints import ProcessEndpoints
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class RouteSetup:
         config_endpoints: "ConfigEndpoints",
         upload_handler: "UploadHandler",
         opencode_proxy: "OpenCodeProxy",
+        process_endpoints: "ProcessEndpoints" = None,
     ):
         """初始化路由设置器
         
@@ -47,6 +49,7 @@ class RouteSetup:
             config_endpoints: 配置端点处理器
             upload_handler: 文件上传处理器
             opencode_proxy: OpenCode代理处理器
+            process_endpoints: 进程控制端点处理器
         """
         self.auth_handler = auth_handler
         self.session_endpoints = session_endpoints
@@ -54,6 +57,7 @@ class RouteSetup:
         self.config_endpoints = config_endpoints
         self.upload_handler = upload_handler
         self.opencode_proxy = opencode_proxy
+        self.process_endpoints = process_endpoints
     
     def setup_routes(self, app: web.Application) -> None:
         """设置路由
@@ -97,6 +101,7 @@ class RouteSetup:
         router.add_post("/api/task/delete", self.task_endpoints.handle_delete_task)
         
         # Session 端点
+        router.add_get("/api/session/status", self.session_endpoints.handle_sessions_status)
         router.add_post("/api/session/list", self.session_endpoints.handle_session_list)
         router.add_post("/api/session/switch", self.session_endpoints.handle_session_switch)
         router.add_post("/api/session/new", self.session_endpoints.handle_session_new)
@@ -124,6 +129,14 @@ class RouteSetup:
         # QQ用户信息端点
         router.add_get("/api/qq/userinfo/{user_id}", self.opencode_proxy.handle_get_qq_userinfo)
         router.add_get("/api/qq/userinfo", self.opencode_proxy.handle_get_qq_userinfo)
+        
+        # 进程控制端点
+        if self.process_endpoints:
+            router.add_get("/api/system/status", self.process_endpoints.handle_get_status)
+            router.add_post("/api/system/restart/opencode", self.process_endpoints.handle_restart_opencode)
+            router.add_post("/api/system/start/opencode", self.process_endpoints.handle_start_opencode)
+            router.add_post("/api/system/stop/opencode", self.process_endpoints.handle_stop_opencode)
+            router.add_post("/api/system/restart/bot", self.process_endpoints.handle_restart_bot)
         
         # 404 处理
         router.add_route("*", "/{tail:.*}", self.handle_not_found)
@@ -165,6 +178,7 @@ def log_routes_info() -> None:
     logger.info(f"  POST /api/task/set     - 创建定时任务")
     logger.info(f"  POST /api/task/update  - 更新定时任务")
     logger.info(f"  POST /api/task/delete  - 删除定时任务")
+    logger.info(f"  GET  /api/session/status - 获取所有会话状态")
     logger.info(f"  POST /api/session/list   - 获取用户会话列表")
     logger.info(f"  POST /api/session/switch - 切换会话")
     logger.info(f"  POST /api/session/new    - 创建新会话")
@@ -180,3 +194,9 @@ def log_routes_info() -> None:
     logger.info(f"  POST /api/opencode/sessions/{{id}}/messages - OpenCode发送消息")
     logger.info(f"  GET  /api/opencode/models - OpenCode模型列表")
     logger.info(f"  GET  /api/opencode/agents - OpenCode智能体列表")
+    # 进程控制端点
+    logger.info(f"  GET  /api/system/status - 获取进程状态")
+    logger.info(f"  POST /api/system/restart/opencode - 重启OpenCode")
+    logger.info(f"  POST /api/system/start/opencode - 启动OpenCode")
+    logger.info(f"  POST /api/system/stop/opencode - 停止OpenCode")
+    logger.info(f"  POST /api/system/restart/bot - 重启Bot")

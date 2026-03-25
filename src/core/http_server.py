@@ -1692,25 +1692,45 @@ class HTTPServer:
         response.headers['Access-Control-Allow-Origin'] = '*'
         await response.prepare(request)
         
+        self._sse_running = True
+        
         try:
             async with ClientSession() as session:
                 headers = self._build_opencode_headers()
                 async with session.get(
                     f'{OPENCODE_BASE_URL}/global/event',
                     headers=headers,
-                    timeout=None
+                    timeout=aiohttp.ClientTimeout(sock_connect=5, sock_read=1)  # 每秒超时检查停止标志
                 ) as upstream:
                     async for line in upstream.content:
+                        # 检查是否需要停止
+                        if not getattr(self, '_sse_running', True):
+                            logger.info("SSE 监听已停止（收到停止信号）")
+                            break
                         try:
                             await response.write(line)
                         except Exception as e:
                             logger.debug(f"SSE写入失败: {e}")
                             break
+        except asyncio.TimeoutError:
+            # 超时时检查是否需要停止
+            if not getattr(self, '_sse_running', True):
+                logger.info("SSE 监听已停止（超时时收到停止信号）")
         except ClientError as e:
             logger.error(f"OpenCode SSE连接失败: {e}")
         except Exception as e:
             logger.error(f"SSE代理异常: {e}")
         return response
+    
+    def stop_sse_listening(self):
+        """停止 SSE 监听"""
+        self._sse_running = False
+        logger.info("已设置 SSE 停止标志")
+    
+    def start_sse_listening(self):
+        """开始 SSE 监听"""
+        self._sse_running = True
+        logger.info("已清除 SSE 停止标志")
 
     async def handle_opencode_session_list(self, request: web.Request) -> web.Response:
         """代理OpenCode会话列表"""
