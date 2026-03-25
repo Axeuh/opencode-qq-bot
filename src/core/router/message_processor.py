@@ -454,19 +454,28 @@ class MessageProcessor:
         has_forward_in_files = quoted_files_info and "[forward:" in quoted_files_info
         
         prefix_data = {"type": "quoted_message"}
+        hint_parts = []
         
         if has_forward_in_files:
             # forward 类型
             forward_content = quoted_files_info.replace("[forward: ", "").rstrip("]")
             prefix_data["forward_content"] = forward_content
+            hint_parts.append("用户引用了一个合并转发消息")
         elif quoted_files_info:
             # 有附件
             if quoted_content:
                 prefix_data["content"] = quoted_content
+                hint_parts.append(f"用户引用了一条消息，内容: {quoted_content[:50]}...")
             prefix_data["attachments"] = quoted_files_info
+            hint_parts.append("引用的消息包含附件")
         elif quoted_content:
             # 只有文本内容
             prefix_data["content"] = quoted_content
+            hint_parts.append(f"用户引用了一条消息，内容: {quoted_content[:50]}...")
+        
+        # 添加提示信息
+        if hint_parts:
+            prefix_data["hint"] = "。".join(hint_parts) + "。请在回复时考虑引用的上下文。"
         
         if prefix_data.get("content") or prefix_data.get("forward_content") or prefix_data.get("attachments"):
             return json.dumps(prefix_data, ensure_ascii=False) + "\n"

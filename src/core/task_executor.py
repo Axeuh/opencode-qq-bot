@@ -72,7 +72,8 @@ class TaskExecutor:
                     "task_id": task_info.get('task_id', ''),
                     "user_qq": task_info.get('user_id', ''),
                     "session_id": task_info.get('session_id', ''),
-                    "task_name": task_info.get('task_name', '')
+                    "task_name": task_info.get('task_name', ''),
+                    "hint": f"这是一个定时任务，任务ID: {task_info.get('task_id', '')}, 用户QQ: {task_info.get('user_id', '')}, 任务名称: {task_info.get('task_name', '')}。请根据任务要求执行相应操作。"
                 }
                 prefix = json.dumps(prefix_data, ensure_ascii=False) + "\n"
                 full_prompt = prefix + prompt
