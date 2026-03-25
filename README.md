@@ -135,9 +135,9 @@ python scripts/run_bot.py
 | `/redo`           | 恢复所有撤销的消息 | `/redo`                             | 用户友好回复："已恢复所有撤销的消息" |
 | `/reload`         | 重新加载配置       | `/reload`                           | 重新加载配置文件                     |
 | `/reload restart` | 重启机器人程序     | `/reload restart`                   | 在同一终端内热重启                   |
-| `/command [命令]` | 执行 OpenCode 命令 | `/command /init-deep`               | 执行 OpenCode 内置命令               |
+| `/command [序号]` | 执行 OpenCode 斜杠命令 | `/command` 或 `/command 1`      | 列出或执行 OpenCode 内置斜杠命令     |
 | `/compact`        | 压缩对话上下文     | `/compact`                          | 压缩当前对话以节省上下文空间         |
-| `/directory`      | 切换工作目录       | `/directory /path`                  | 切换 OpenCode 工作目录               |
+| `/path [目录]`    | 切换工作目录       | `/path D:\projects`                 | 切换 OpenCode 工作目录               |
 
 ### 3. Web 控制台
 
@@ -169,6 +169,152 @@ python scripts/run_bot.py
 
 - **延时任务**：在指定时间后执行（分钟/小时/天/周/月）
 - **定时任务**：每周/每月/每年固定时间执行
+
+### 6. 进程管理
+
+机器人内置进程管理器，支持：
+
+- **OpenCode 进程控制**：启动、停止、重启 OpenCode 服务
+- **Bot 进程重启**：支持热重启，保持会话状态
+- **PID 追踪**：通过 `data/opencode.pid` 追踪 OpenCode 进程
+- **会话恢复**：重启后自动恢复所有活跃会话
+- **进程健康监控**：每 5 秒检查一次，自动重启退出的进程
+
+**OpenCode 重启流程**：
+1. 保存活跃会话（调用 `/session/status` API）
+2. 停止 SSE 监听（释放端口）
+3. 停止进程（taskkill /F /T）
+4. 启动新进程
+5. 异步恢复会话（发送"继续"消息）
+
+**Bot 热重启流程**：
+1. 保存活跃会话到 `data/sessions_to_recover.json`
+2. 停止 SSE 监听
+3. 使用 `os.execv` 重启进程
+4. 重启后自动恢复会话
+
+**相关命令**：
+- `/reload` - 热重载配置和代码
+- `/reload restart` - 重启 Bot 进程
+
+### 7. HTTP API 端点
+
+机器人提供 41 个 HTTP API 端点：
+
+#### 认证端点
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/login` | POST | 用户登录 |
+| `/api/password/set` | POST | 设置密码 |
+| `/api/password/change` | POST | 修改密码 |
+| `/health` | GET | 健康检查 |
+
+#### 会话管理
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/session/status` | GET | 获取所有会话状态 |
+| `/api/session/list` | GET | 列出用户会话 |
+| `/api/session/switch` | POST | 切换会话 |
+| `/api/session/new` | POST | 创建新会话 |
+| `/api/session/delete` | POST | 删除会话 |
+| `/api/session/title` | POST | 设置会话标题 |
+| `/api/session/tokens` | POST | 更新会话 tokens |
+
+#### 配置管理
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/agents` | GET | 列出所有智能体 |
+| `/api/agents/get` | POST | 获取当前智能体 |
+| `/api/agents/set` | POST | 设置智能体 |
+| `/api/models` | GET | 列出所有模型 |
+| `/api/model/get` | POST | 获取当前模型 |
+| `/api/model/set` | POST | 设置模型 |
+| `/api/directory/get` | POST | 获取工作目录 |
+| `/api/directory/set` | POST | 设置工作目录 |
+| `/api/reload` | POST | 重载配置 |
+
+#### 定时任务
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/task/get` | POST | 获取任务列表 |
+| `/api/task/set` | POST | 创建任务 |
+| `/api/task/update` | POST | 更新任务 |
+| `/api/task/delete` | POST | 删除任务 |
+
+#### 系统管理
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/system/status` | GET | 系统状态 |
+| `/api/system/restart/opencode` | POST | 重启 OpenCode |
+| `/api/system/start/opencode` | POST | 启动 OpenCode |
+| `/api/system/stop/opencode` | POST | 停止 OpenCode |
+| `/api/system/restart/bot` | POST | 重启 Bot |
+
+#### OpenCode 代理
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/opencode/events` | GET | SSE 事件流 |
+| `/api/opencode/sessions` | GET/POST | 会话列表/创建 |
+| `/api/opencode/sessions/{id}` | GET/DELETE | 会话详情/删除 |
+| `/api/opencode/sessions/{id}/messages` | GET/POST | 消息历史/发送 |
+| `/api/opencode/models` | GET | 模型列表 |
+| `/api/opencode/agents` | GET | 智能体列表 |
+
+#### 其他
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/qq/userinfo/{user_id}` | GET | QQ 用户信息 |
+| `/api/upload` | POST | 文件上传 |
+
+### 8. 技能系统
+
+OpenCode 通过技能与 QQ 交互：
+
+#### axeuh-control MCP 技能
+
+提供 Bot 控制和用户管理功能：
+
+| 功能 | 说明 |
+|------|------|
+| 用户会话管理 | 创建、切换、删除用户会话映射 |
+| 任务管理 | 创建、删除、查看定时任务 |
+| 智能体管理 | 获取列表、设置用户智能体 |
+| 模型管理 | 获取列表、设置用户模型 |
+| 系统管理 | 健康检查、重启 OpenCode/Bot |
+| 工作目录管理 | 获取/设置用户工作目录 |
+
+#### qq-message-napcat 技能
+
+提供 QQ 消息发送功能：
+
+| 功能 | 说明 |
+|------|------|
+| 发送私聊消息 | 支持文本、图片、表情 |
+| 发送群聊消息 | 支持@、图片、文件 |
+| 发送文件 | 支持自定义文件名 |
+| 获取好友列表 | 获取机器人好友列表 |
+| 发送戳一戳 | 发送私聊/群聊戳一戳 |
+
+### 9. 高级功能
+
+#### 消息队列处理
+- **消息去重**：避免重复处理同一消息
+- **消息优先级**：优先处理高优先级消息
+
+#### CQ 码解析
+- 解析图片、文件等富媒体消息
+- 提取引用消息 ID
+- 解析合并转发消息
+
+#### 文件下载
+- **三层回退机制**：HTTP API → WebSocket API → 字符匹配
+- 路径解析和验证
+- 自动下载到 `downloads/` 目录
+
+#### 连接管理
+- WebSocket 断线自动重连
+- 心跳保活机制
+- 连接状态监控
 
 ## 配置说明
 
@@ -310,6 +456,7 @@ router.add_post("/api/my_endpoint", self.handle_my_endpoint)
 
 ### 最新版本
 
+- **文档完善**：补充 HTTP API 端点（41 个）、进程管理细节、高级功能说明
 - **智能体参数统一**：所有代码使用完整智能体名称，不支持简写
 - **Web 控制台优化**：添加全局 loading 动画，优化加载体验
 - **前端模块化**：JS 拆分为 10 个模块，CSS 独立文件
