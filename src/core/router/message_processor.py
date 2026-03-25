@@ -439,7 +439,7 @@ class MessageProcessor:
         quoted_content: str, 
         quoted_files_info: str
     ) -> str:
-        """构建引用消息前缀
+        """构建引用消息前缀 (JSON格式)
         
         Args:
             quoted_content: 引用内容文本
@@ -448,25 +448,27 @@ class MessageProcessor:
         Returns:
             引用消息前缀
         """
-        quoted_parts = []
+        import json
         
         # 检查是否包含 forward 类型
         has_forward_in_files = quoted_files_info and "[forward:" in quoted_files_info
         
+        prefix_data = {"type": "quoted_message"}
+        
         if has_forward_in_files:
-            # forward 类型直接显示内容，不显示"引用附件"标签
+            # forward 类型
             forward_content = quoted_files_info.replace("[forward: ", "").rstrip("]")
-            quoted_parts.append(f"[引用合并转发消息：{forward_content}]")
+            prefix_data["forward_content"] = forward_content
         elif quoted_files_info:
-            # 其他附件类型，检查是否有文本内容
+            # 有附件
             if quoted_content:
-                quoted_parts.append(f"[引用消息：{quoted_content}]")
-            quoted_parts.append(f"[引用附件：{quoted_files_info}]")
+                prefix_data["content"] = quoted_content
+            prefix_data["attachments"] = quoted_files_info
         elif quoted_content:
             # 只有文本内容
-            quoted_parts.append(f"[引用消息：{quoted_content}]")
+            prefix_data["content"] = quoted_content
         
-        if quoted_parts:
-            return " ".join(quoted_parts) + " "
+        if prefix_data.get("content") or prefix_data.get("forward_content") or prefix_data.get("attachments"):
+            return json.dumps(prefix_data, ensure_ascii=False) + "\n"
         
         return ""

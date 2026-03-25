@@ -64,9 +64,17 @@ class TaskExecutor:
                         user_provider = user_config.provider
                         logger.info(f"使用用户配置: user_id={user_id}, agent={user_agent}, model={user_model}, provider={user_provider}")
             
-            # 构建带前缀的prompt
+            # 构建带前缀的prompt (JSON格式)
             if task_info:
-                prefix = f"[任务 id={task_info.get('task_id', '')}, 用户 qq 号={task_info.get('user_id', '')}, 会话 id={task_info.get('session_id', '')}, 任务名称={task_info.get('task_name', '')}]\n"
+                import json
+                prefix_data = {
+                    "type": "task",
+                    "task_id": task_info.get('task_id', ''),
+                    "user_qq": task_info.get('user_id', ''),
+                    "session_id": task_info.get('session_id', ''),
+                    "task_name": task_info.get('task_name', '')
+                }
+                prefix = json.dumps(prefix_data, ensure_ascii=False) + "\n"
                 full_prompt = prefix + prompt
             else:
                 full_prompt = prompt

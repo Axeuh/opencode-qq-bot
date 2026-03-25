@@ -302,19 +302,31 @@ class FileHandler:
         user_id: Optional[int],
         filename: str
     ) -> str:
-        """处理图片文件"""
+        """处理图片文件 (JSON格式输出)"""
+        import json
         url = file_info.get("params", {}).get("url", "")
         
         local_path = await self.download_file(file_info, group_id, user_id)
         
         if local_path:
-            file_msg = f"{self.config.get('file_message_prefix', '用户发送了一个文件，文件路径：')}{local_path}"
+            file_data = {
+                "type": "file",
+                "file_type": "image",
+                "filename": filename,
+                "local_path": local_path,
+                "status": "downloaded"
+            }
+            file_msg = json.dumps(file_data, ensure_ascii=False)
             logger.info(f"图片下载成功：{filename} -> {local_path}")
         elif self.config.get("continue_on_download_fail", True):
-            if url:
-                file_msg = f"用户发送了一张图片：{filename} (URL: {url}) [下载失败]"
-            else:
-                file_msg = f"用户发送了一张图片：{filename} [下载失败]"
+            file_data = {
+                "type": "file",
+                "file_type": "image",
+                "filename": filename,
+                "url": url if url else None,
+                "status": "download_failed"
+            }
+            file_msg = json.dumps(file_data, ensure_ascii=False)
             logger.warning(f"图片下载失败但仍继续处理：{filename}")
         else:
             logger.error(f"图片下载失败且配置为不继续处理：{filename}")
@@ -329,11 +341,10 @@ class FileHandler:
         user_id: Optional[int],
         original_message: Optional[Dict[str, Any]]
     ) -> str:
-        """处理合并转发消息"""
+        """处理合并转发消息 (JSON格式输出)"""
+        import json
         forward_id = file_info.get("file_id", "")
         params = file_info.get("params", {})
-        
-        file_msg = f"用户发送了一个合并转发消息 (ID: {forward_id})"
         
         # 尝试获取转发消息内容
         forward_messages = await self._get_forward_messages(forward_id)
@@ -345,7 +356,7 @@ class FileHandler:
         
         # 回退到 XML 解析
         return await self._fallback_xml_parse(
-            forward_id, params, original_message, file_msg
+            forward_id, params, original_message, forward_id
         )
     
     async def _get_forward_messages(self, forward_id: str) -> Optional[List[Dict[str, Any]]]:
@@ -387,7 +398,8 @@ class FileHandler:
         group_id: Optional[int],
         user_id: Optional[int]
     ) -> str:
-        """解析合并转发消息列表"""
+        """解析合并转发消息列表 (JSON格式输出)"""
+        import json
         parsed_messages = []
         downloaded_files = []
         
@@ -402,20 +414,26 @@ class FileHandler:
             )
             
             if text_content.strip():
-                parsed_messages.append(f"{nickname}: {text_content.strip()}")
+                parsed_messages.append({
+                    "sender": nickname,
+                    "content": text_content.strip()
+                })
         
         if parsed_messages:
-            file_msg = "用户发送了一个合并转发消息:\n" + "\n".join(f"  {msg}" for msg in parsed_messages)
-            
-            if downloaded_files:
-                file_msg += f"\n\n已下载 {len(downloaded_files)} 个附件:"
-                for ftype, fname, fpath in downloaded_files:
-                    file_msg += f"\n  - {ftype}: {fname} -> {fpath}"
-            
+            forward_data = {
+                "type": "forward_message",
+                "forward_id": forward_id,
+                "message_count": len(parsed_messages),
+                "messages": parsed_messages,
+                "downloaded_files": [
+                    {"type": ftype, "filename": fname, "local_path": fpath}
+                    for ftype, fname, fpath in downloaded_files
+                ] if downloaded_files else []
+            }
             logger.info(f"合并转发消息解析成功: {len(parsed_messages)}条消息, 下载{len(downloaded_files)}个文件")
-            return file_msg
+            return json.dumps(forward_data, ensure_ascii=False)
         
-        return f"用户发送了一个合并转发消息 (ID: {forward_id}) [无有效内容]"
+        return json.dumps({"type": "forward_message", "forward_id": forward_id, "status": "empty"}, ensure_ascii=False)
     
     async def _parse_forward_message_items(
         self,
@@ -501,9 +519,10 @@ class FileHandler:
         forward_id: str,
         params: Dict[str, Any],
         original_message: Optional[Dict[str, Any]],
-        default_msg: str
+        default_forward_id: str
     ) -> str:
-        """回退到 XML 解析"""
+        """回退到 XML 解析 (JSON格式输出)"""
+        import json
         logger.info(f"get_forward_msg API 不可用，尝试 XML 解析")
         
         xml_content = self._extract_xml_content(params, original_message)
@@ -519,7 +538,13 @@ class FileHandler:
         else:
             logger.info(f"合并转发消息无XML内容可用，forward_id: {forward_id}")
         
-        return default_msg
+        # 返回默认的JSON格式
+        return json.dumps({
+            "type": "forward_message",
+            "forward_id": default_forward_id,
+            "status": "parse_failed",
+            "source": "fallback"
+        }, ensure_ascii=False)
     
     def _extract_xml_content(
         self,
@@ -564,25 +589,24 @@ class FileHandler:
         return []
     
     def _build_forward_message_from_titles(self, titles: List[str]) -> str:
-        """从标题构建转发消息"""
+        """从标题构建转发消息 (JSON格式输出)"""
+        import json
         def clean_title_text(text: str) -> str:
             cleaned = re.sub(r'^[^:：]+[:：]\s*', '', text)
             return cleaned.strip()
         
         cleaned_titles = [clean_title_text(title) for title in titles]
         
-        if len(titles) > 1:
-            main_title = titles[0]
-            content_preview = [t for t in cleaned_titles[1:] if t]
-            if content_preview:
-                preview_text = "; ".join(content_preview)
-                return f"用户发送了一个合并转发消息: {main_title} - 内容: {preview_text}"
-            else:
-                return f"用户发送了一个合并转发消息: {main_title}"
-        else:
-            return f"用户发送了一个合并转发消息: {titles[0]}"
+        forward_data = {
+            "type": "forward_message",
+            "source": "xml_parse",
+            "titles": titles,
+            "content_preview": cleaned_titles[1:] if len(cleaned_titles) > 1 else []
+        }
+        
+        return json.dumps(forward_data, ensure_ascii=False)
     
-    async def _process_other_file(
+async def _process_other_file(
         self,
         file_info: Dict[str, Any],
         group_id: Optional[int],
@@ -590,25 +614,50 @@ class FileHandler:
         filename: str,
         file_id: str
     ) -> str:
-        """处理其他文件类型"""
+        """处理其他文件类型 (JSON格式输出)"""
+        import json
+        file_type = file_info.get("type", "file")
+        url = file_info.get("url") or file_info.get("params", {}).get("url")
+        
         if not self.config.get("auto_download_files", True):
-            file_msg = f"用户发送了一个文件: {filename} (ID: {file_id})"
+            file_data = {
+                "type": "file",
+                "file_type": file_type,
+                "filename": filename,
+                "file_id": file_id,
+                "status": "skipped",
+                "reason": "auto_download_disabled"
+            }
             logger.info(f"跳过文件下载: {filename} (配置为不自动下载)")
-            return file_msg
+            return json.dumps(file_data, ensure_ascii=False)
         
         local_path = await self.download_file(file_info, group_id, user_id)
         
         if local_path:
-            file_msg = f"{self.config.get('file_message_prefix', '用户发送了一个文件，文件路径: ')}{local_path}"
+            file_data = {
+                "type": "file",
+                "file_type": file_type,
+                "filename": filename,
+                "file_id": file_id,
+                "local_path": local_path,
+                "status": "downloaded"
+            }
             logger.info(f"文件信息已添加到消息: {filename} -> {local_path}")
-            return file_msg
+            return json.dumps(file_data, ensure_ascii=False)
         
         if self.config.get("continue_on_download_fail", True):
-            file_msg = f"用户发送了一个文件: {filename} (文件ID: {file_id}) [下载失败]"
-            logger.warning(f"文件下载失败但仍继续处理: {filename}")
-            return file_msg
+            file_data = {
+                "type": "file",
+                "file_type": file_type,
+                "filename": filename,
+                "file_id": file_id,
+                "url": url,
+                "status": "download_failed"
+            }
+            logger.warning(f"文件下载失败但仍继续处理：{filename}")
+            return json.dumps(file_data, ensure_ascii=False)
         
-        logger.error(f"文件下载失败且配置为不继续处理: {filename}")
+        logger.error(f"文件下载失败且配置为不继续处理：{filename}")
         return ""
 
 
