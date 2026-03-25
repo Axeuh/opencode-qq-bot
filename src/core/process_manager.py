@@ -545,15 +545,14 @@ class ProcessManager:
                     
                     if session_data:
                         title = session_data.get("title", "")
-                        # 优先使用 OpenCode API 返回的 directory（这是最准确的）
-                        api_directory = session_data.get("directory")
                         
-                        # 从本地 session_manager 获取 agent/model/provider
+                        # 从本地 session_manager 获取 agent/model/provider/directory
                         # 遍历所有用户会话找到匹配的 session_id
                         # 可能有多个用户共享同一个会话，选择最近活跃的用户
                         agent = None
                         model = None
                         provider = None
+                        directory = None
                         user_id = None
                         user_name = None
                         latest_access = 0
@@ -568,12 +567,15 @@ class ProcessManager:
                                         agent = user_session.agent
                                         model = user_session.model
                                         provider = user_session.provider
+                                        # 优先使用本地存储的 directory（用户设置的值，最准确）
+                                        if user_session.directory:
+                                            directory = user_session.directory
                             
                             if user_id:
                                 # 从配置获取用户名
                                 user_config = self.session_manager.user_configs.get(user_id, {})
                                 user_name = user_config.get("nickname", "") if isinstance(user_config, dict) else getattr(user_config, "nickname", "") if user_config else ""
-                                logger.debug(f"选择最近活跃用户: user_id={user_id}, last_accessed={latest_access}, agent={agent}, model={model}")
+                                logger.debug(f"选择最近活跃用户: user_id={user_id}, last_accessed={latest_access}, agent={agent}, model={model}, directory={directory}")
                         
                         # 如果没有找到，使用配置的默认值
                         if not agent:
@@ -583,16 +585,13 @@ class ProcessManager:
                         if not provider:
                             provider = self.opencode_client.default_provider
                         
-                        # directory: 优先使用 OpenCode API 返回的值（最准确）
-                        directory = api_directory
+                        # directory: 优先使用本地存储（用户设置的值），最后才用 API 返回值
                         if not directory or directory == "/" or directory == "C:\\":
-                            # 如果 API 返回无效值，尝试从本地存储获取
-                            if self.session_manager and user_id:
-                                user_session = self.session_manager.get_user_session(user_id)
-                                if user_session and user_session.directory:
-                                    directory = user_session.directory
-                            # 最后使用默认值
-                            if not directory:
+                            # 本地存储无效，尝试使用 OpenCode API 返回值作为备份
+                            api_directory = session_data.get("directory")
+                            if api_directory and api_directory != "/" and api_directory != "C:\\":
+                                directory = api_directory
+                            else:
                                 directory = self.opencode_client.directory or "/"
                         
                         session_info = {
