@@ -478,6 +478,6 @@ class MessageProcessor:
             prefix_data["hint"] = "。".join(hint_parts) + "。请在回复时考虑引用的上下文。"
         
         if prefix_data.get("content") or prefix_data.get("forward_content") or prefix_data.get("attachments"):
-            return json.dumps(prefix_data, ensure_ascii=False) + "\n"
+            return "<Axeuh_bot>\n" + json.dumps(prefix_data, ensure_ascii=False) + "\n</Axeuh_bot>\n"
         
         return ""

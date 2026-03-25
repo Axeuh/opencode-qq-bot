@@ -317,7 +317,7 @@ class FileHandler:
                 "status": "downloaded",
                 "hint": f"用户发送了一张图片，文件名: {filename}，已下载到本地路径: {local_path}。如果需要分析图片内容，可以使用图片路径。"
             }
-            file_msg = json.dumps(file_data, ensure_ascii=False)
+            file_msg = "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
             logger.info(f"图片下载成功：{filename} -> {local_path}")
         elif self.config.get("continue_on_download_fail", True):
             file_data = {
@@ -328,7 +328,7 @@ class FileHandler:
                 "status": "download_failed",
                 "hint": f"用户发送了一张图片，文件名: {filename}，但下载失败。如有URL可尝试通过URL访问。"
             }
-            file_msg = json.dumps(file_data, ensure_ascii=False)
+            file_msg = "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
             logger.warning(f"图片下载失败但仍继续处理：{filename}")
         else:
             logger.error(f"图片下载失败且配置为不继续处理：{filename}")
@@ -440,14 +440,14 @@ class FileHandler:
                 "hint": hint_text
             }
             logger.info(f"合并转发消息解析成功: {len(parsed_messages)}条消息, 下载{len(downloaded_files)}个文件")
-            return json.dumps(forward_data, ensure_ascii=False)
+            return "<Axeuh_bot>\n" + json.dumps(forward_data, ensure_ascii=False) + "\n</Axeuh_bot>"
         
-        return json.dumps({
+        return "<Axeuh_bot>\n" + json.dumps({
             "type": "forward_message", 
             "forward_id": forward_id, 
             "status": "empty",
             "hint": "用户发送了一个合并转发消息，但内容为空或无法解析。"
-        }, ensure_ascii=False)
+        }, ensure_ascii=False) + "\n</Axeuh_bot>"
     
     async def _parse_forward_message_items(
         self,
@@ -553,13 +553,13 @@ class FileHandler:
             logger.info(f"合并转发消息无XML内容可用，forward_id: {forward_id}")
         
         # 返回默认的JSON格式
-        return json.dumps({
+        return "<Axeuh_bot>\n" + json.dumps({
             "type": "forward_message",
             "forward_id": default_forward_id,
             "status": "parse_failed",
             "source": "fallback",
             "hint": f"用户发送了一个合并转发消息(ID: {default_forward_id})，但无法解析具体内容。"
-        }, ensure_ascii=False)
+        }, ensure_ascii=False) + "\n</Axeuh_bot>"
     
     def _extract_xml_content(
         self,
@@ -620,7 +620,7 @@ class FileHandler:
             "hint": f"用户发送了一个合并转发消息，主标题: {titles[0] if titles else '未知'}。请根据转发消息的内容进行回复。"
         }
         
-        return json.dumps(forward_data, ensure_ascii=False)
+        return "<Axeuh_bot>\n" + json.dumps(forward_data, ensure_ascii=False) + "\n</Axeuh_bot>"
     
 async def _process_other_file(
         self,
@@ -646,7 +646,7 @@ async def _process_other_file(
                 "hint": f"用户发送了一个{file_type}文件，文件名: {filename}，但未自动下载。如有需要可以请求下载。"
             }
             logger.info(f"跳过文件下载: {filename} (配置为不自动下载)")
-            return json.dumps(file_data, ensure_ascii=False)
+            return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
         
         local_path = await self.download_file(file_info, group_id, user_id)
         
@@ -661,7 +661,7 @@ async def _process_other_file(
                 "hint": f"用户发送了一个{file_type}文件，文件名: {filename}，已下载到本地路径: {local_path}。如需处理文件内容，可以使用该路径。"
             }
             logger.info(f"文件信息已添加到消息: {filename} -> {local_path}")
-            return json.dumps(file_data, ensure_ascii=False)
+            return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
         
         if self.config.get("continue_on_download_fail", True):
             file_data = {
@@ -674,7 +674,7 @@ async def _process_other_file(
                 "hint": f"用户发送了一个{file_type}文件，文件名: {filename}，但下载失败。"
             }
             logger.warning(f"文件下载失败但仍继续处理：{filename}")
-            return json.dumps(file_data, ensure_ascii=False)
+            return "<Axeuh_bot>\n" + json.dumps(file_data, ensure_ascii=False) + "\n</Axeuh_bot>"
         
         logger.error(f"文件下载失败且配置为不继续处理：{filename}")
         return ""

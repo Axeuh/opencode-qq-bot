@@ -64,7 +64,7 @@ class TaskExecutor:
                         user_provider = user_config.provider
                         logger.info(f"使用用户配置: user_id={user_id}, agent={user_agent}, model={user_model}, provider={user_provider}")
             
-            # 构建带前缀的prompt (JSON格式)
+            # 构建带前缀的prompt (JSON格式，带标签)
             if task_info:
                 import json
                 prefix_data = {
@@ -75,7 +75,7 @@ class TaskExecutor:
                     "task_name": task_info.get('task_name', ''),
                     "hint": f"这是一个定时任务，任务ID: {task_info.get('task_id', '')}, 用户QQ: {task_info.get('user_id', '')}, 任务名称: {task_info.get('task_name', '')}。请根据任务要求执行相应操作。"
                 }
-                prefix = json.dumps(prefix_data, ensure_ascii=False) + "\n"
+                prefix = "<Axeuh_bot>\n" + json.dumps(prefix_data, ensure_ascii=False) + "\n</Axeuh_bot>\n"
                 full_prompt = prefix + prompt
             else:
                 full_prompt = prompt
