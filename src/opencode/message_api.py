@@ -124,6 +124,84 @@ class MessageAPI:
         logger.info(f"发送消息成功，会话: {session_id}, 长度: {len(message_text)}字符")
         return data, None
     
+    async def send_message_async(
+        self,
+        message_text: str,
+        session_id: str,
+        agent: Optional[str] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
+        directory: Optional[str] = None
+    ) -> RequestResult:
+        """
+        异步发送消息到 OpenCode 会话（使用 prompt_async 端点，不堵塞进程）
+        
+        Args:
+            message_text: 消息文本
+            session_id: 会话 ID（必须已存在）
+            agent: 智能体名称
+            model: 模型 ID
+            provider: 提供商 ID
+            directory: 工作目录
+            
+        Returns:
+            (响应数据, 错误消息) 元组 - prompt_async 返回 204 No Content
+        """
+        client = self._get_client()
+        
+        # 使用默认值
+        agent = agent or client.default_agent
+        model = model or client.default_model
+        provider = provider or client.default_provider
+        
+        # 解析模型字符串
+        if model and "/" in model:
+            parsed_provider, parsed_model = client.parse_model_string(model)
+            model = parsed_model
+            if not provider:
+                provider = parsed_provider
+        elif not provider:
+            if model and model.startswith("deepseek-"):
+                provider = "deepseek"
+            else:
+                provider = provider or client.default_provider
+        
+        # 构建消息载荷
+        payload = {
+            "agent": agent,
+            "model": {
+                "modelID": model,
+                "providerID": provider
+            },
+            "parts": [{
+                "type": "text",
+                "text": message_text
+            }]
+        }
+        
+        # 构建额外请求头
+        extra_headers = {}
+        if directory:
+            directory_b64 = base64.b64encode(directory.encode()).decode()
+            referer = f"{client.base_url}/{directory_b64}/session/{session_id}"
+            extra_headers["Referer"] = referer
+            extra_headers["x-opencode-directory"] = directory
+        
+        # 使用 prompt_async 端点（异步，返回 204）
+        data, error = await client._send_request(
+            method="POST",
+            endpoint=f"/session/{session_id}/prompt_async",
+            json_data=payload,
+            extra_headers=extra_headers if extra_headers else None
+        )
+        
+        if error:
+            return None, error
+        
+        # prompt_async 返回空响应或 {"text": ""}
+        logger.info(f"异步发送消息成功，会话: {session_id}, 长度: {len(message_text)}字符")
+        return {"session_id": session_id, "async": True}, None
+    
     async def execute_command(
         self,
         session_id: str,

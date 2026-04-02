@@ -340,6 +340,26 @@ class OpenCodeForwarder:
     
     # ==================== 主入口函数 ====================
     
+    async def _abort_if_busy(self, session_id: str, user_id: int) -> None:
+        """
+        如果会话正在运行，先中断它
+        
+        Args:
+            session_id: 会话 ID
+            user_id: 用户 ID（用于日志）
+        """
+        try:
+            # 尝试中断会话（无论是否正在运行都调用，OpenCode会自动处理）
+            success, error = await self._client.abort_session(session_id)
+            if success:
+                logger.info(f"发送消息前自动中断会话: {session_id} (用户={user_id})")
+            elif error:
+                # 忽略"会话不存在"或"会话未运行"等错误
+                logger.debug(f"中断会话返回（可忽略）: {error}")
+        except Exception as e:
+            # 中断失败不应阻止消息发送
+            logger.debug(f"尝试中断会话失败（继续发送）: {e}")
+    
     async def forward_to_opencode(
         self,
         message_type: str,
@@ -378,6 +398,9 @@ class OpenCodeForwarder:
             if error or not session_id:
                 logger.error(f"获取/创建会话失败: {error}")
                 return
+            
+            # 2.5 如果会话正在运行，先中断它（确保新消息能被处理）
+            await self._abort_if_busy(session_id, user_id)
             
             # 3. 发送消息
             response, error = await self._send_to_opencode(

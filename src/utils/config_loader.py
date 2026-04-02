@@ -236,8 +236,12 @@ HTTP_SERVER_HOST = _loader.get("http_server.host", "127.0.0.1")
 HTTP_SERVER_PORT = _loader.get("http_server.port", 8080)
 HTTP_SERVER_HTTP_PORT = _loader.get("http_server.http_port", None)
 HTTP_SERVER_ACCESS_TOKEN = _loader.get("http_server.access_token", "")
-HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl_cert", None)
-HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl_key", None)
+# SSL 配置（支持两种格式）
+# 新格式: http_server.ssl.enabled / http_server.ssl.cert / http_server.ssl.key
+# 旧格式: http_server.ssl_cert / http_server.ssl_key（向后兼容）
+HTTP_SERVER_SSL_ENABLED = _loader.get("http_server.ssl.enabled", False)
+HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl.cert", None) or _loader.get("http_server.ssl_cert", None)
+HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl.key", None) or _loader.get("http_server.ssl_key", None)
 
 
 def update_config_from_reload() -> None:
@@ -260,7 +264,7 @@ def update_config_from_reload() -> None:
     global SPECIAL_REPLIES, ENABLE_AT_MENTION
     global OPENCODE_ENABLED_FEATURES, OPENCODE_MESSAGE_CONFIG, OPENCODE_SYSTEM_PROMPT
     global AUTO_REPLY_KEYWORDS, MESSAGE_CONFIG, TARGET_GROUP_ID, TASK_SCHEDULER_CHECK_INTERVAL
-    global HTTP_SERVER_ENABLED, HTTP_SERVER_HOST, HTTP_SERVER_PORT, HTTP_SERVER_HTTP_PORT, HTTP_SERVER_ACCESS_TOKEN, HTTP_SERVER_SSL_CERT, HTTP_SERVER_SSL_KEY
+    global HTTP_SERVER_ENABLED, HTTP_SERVER_HOST, HTTP_SERVER_PORT, HTTP_SERVER_HTTP_PORT, HTTP_SERVER_ACCESS_TOKEN, HTTP_SERVER_SSL_ENABLED, HTTP_SERVER_SSL_CERT, HTTP_SERVER_SSL_KEY
     
     # 重新加载配置
     _loader = ConfigLoader(_loader.config_path if _loader else None)
@@ -310,7 +314,7 @@ def update_config_from_reload() -> None:
     FILE_HANDLING_CONFIG = _loader.get("file_handling", {})
     DOWNLOAD_DIR = _loader.get("file_handling.download_dir", "downloads")
     TEMP_DIR = _loader.get("file_handling.napcat_temp_dir", "")
-    MAX_FILE_SIZE = _loader.get("file_handling.max_file_size", 52428800)
+    MAX_FILE_SIZE = _loader.get("file_handling.max_file_size", 1073741824)
     ALLOWED_EXTENSIONS = _loader.get("file_handling.allowed_extensions", [])
     ENABLE_AUTO_DOWNLOAD = _loader.get("file_handling.auto_download", True)
     
@@ -331,5 +335,7 @@ def update_config_from_reload() -> None:
     HTTP_SERVER_PORT = _loader.get("http_server.port", 8080)
     HTTP_SERVER_HTTP_PORT = _loader.get("http_server.http_port", None)
     HTTP_SERVER_ACCESS_TOKEN = _loader.get("http_server.access_token", "")
-    HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl_cert", None)
-    HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl_key", None)
+    # SSL 配置（支持两种格式）
+    HTTP_SERVER_SSL_ENABLED = _loader.get("http_server.ssl.enabled", False)
+    HTTP_SERVER_SSL_CERT = _loader.get("http_server.ssl.cert", None) or _loader.get("http_server.ssl_cert", None)
+    HTTP_SERVER_SSL_KEY = _loader.get("http_server.ssl.key", None) or _loader.get("http_server.ssl_key", None)

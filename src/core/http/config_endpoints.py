@@ -36,7 +36,7 @@ class ConfigEndpoints:
         set_user_config_callback: Optional[Callable[[int, str, Any], Awaitable[Dict[str, Any]]]] = None,
         list_agents_callback: Optional[Callable[[], Awaitable[List[str]]]] = None,
         list_models_callback: Optional[Callable[[], Awaitable[List[str]]]] = None,
-        get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
+        get_directory_callback: Optional[Callable[[int, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
         set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
     ):
         """初始化配置端点处理器

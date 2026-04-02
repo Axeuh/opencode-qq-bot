@@ -126,6 +126,8 @@ class SessionManager:
         """
         根据session_id获取用户的指定会话
         
+        会先检查当前活跃会话，如果没有匹配则从历史记录中查找。
+        
         Args:
             user_id: QQ用户ID
             session_id: OpenCode会话ID
@@ -134,10 +136,29 @@ class SessionManager:
             用户会话对象，如果不存在则返回None
         """
         with self.lock:
+            # 先检查当前活跃会话
             current = self.user_sessions.get(user_id)
             if current and current.session_id == session_id:
                 current.update_access()
                 return current
+            
+            # 从历史记录中查找
+            history = self.user_session_history.get(user_id, [])
+            for session_data in history:
+                if isinstance(session_data, dict) and session_data.get("session_id") == session_id:
+                    # 找到了，创建一个临时UserSession对象返回
+                    return UserSession(
+                        user_id=user_id,
+                        session_id=session_id,
+                        title=session_data.get("title", ""),
+                        created_at=session_data.get("created_at", time.time()),
+                        last_accessed=session_data.get("last_accessed", time.time()),
+                        agent=session_data.get("agent", config.OPENCODE_DEFAULT_AGENT),
+                        model=session_data.get("model", config.OPENCODE_DEFAULT_MODEL),
+                        provider=session_data.get("provider", config.OPENCODE_DEFAULT_PROVIDER),
+                        directory=session_data.get("directory", config.OPENCODE_DIRECTORY)
+                    )
+            
             return None
     
     def create_user_session(
@@ -337,19 +358,36 @@ class SessionManager:
         """
         with self.lock:
             target_session = None
+            target_session_id = session_id
             
             if session_id:
+                # 先检查当前活跃会话
                 current_session = self.user_sessions.get(user_id)
                 if current_session and current_session.session_id == session_id:
                     target_session = current_session
                 else:
+                    # 从历史记录中查找并更新
                     history = self.user_session_history.get(user_id, [])
                     for session_info in history:
                         if session_info.get("session_id") == session_id:
-                            pass
+                            # 找到了，直接更新历史记录中的directory
+                            if reset_to_default:
+                                new_path = config.OPENCODE_DIRECTORY or "C:/"
+                            elif path is not None:
+                                new_path = path
+                            else:
+                                logger.warning(f"未指定路径也未要求重置: user_id={user_id}")
+                                return False
+                            
+                            session_info["directory"] = new_path
+                            self._save_data()
+                            logger.info(f"设置用户 {user_id} 历史会话 {session_id} 路径为: {new_path}")
+                            return True
             
             if not target_session:
                 target_session = self.user_sessions.get(user_id)
+                if target_session:
+                    target_session_id = target_session.session_id
             
             if not target_session:
                 logger.warning(f"未找到用户 {user_id} 的会话")

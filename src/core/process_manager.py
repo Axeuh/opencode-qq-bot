@@ -674,7 +674,7 @@ class ProcessManager:
                 }
                 recovery_message = f'<Axeuh_bot>\n{json.dumps(recovery_data, ensure_ascii=False)}\n</Axeuh_bot>\nopencode已成功重启，请继续'
                 
-                result, error = await self.opencode_client.send_message(
+                result, error = await self.opencode_client.send_message_async(
                     message_text=recovery_message,
                     session_id=session_id,
                     directory=directory,

@@ -43,13 +43,13 @@ class OpenCodeProxy:
     
     def __init__(
         self,
-        get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
+        get_directory_callback: Optional[Callable[[int, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
         session_manager: Optional[Any] = None,
     ):
         """初始化OpenCode代理处理器
         
         Args:
-            get_directory_callback: 获取目录回调
+            get_directory_callback: 获取目录回调，参数(user_id, session_id)
             session_manager: 会话管理器实例
         """
         self.get_directory_callback = get_directory_callback
@@ -168,7 +168,7 @@ class OpenCodeProxy:
             return web.json_response({"success": False, "error": str(e)}, status=500)
     
     async def handle_opencode_message_send(self, request: web.Request) -> web.Response:
-        """代理OpenCode发送消息"""
+        """代理OpenCode异步发送消息 (使用 prompt_async 端点)"""
         try:
             session_id = request.match_info.get('session_id')
             if not session_id:
@@ -196,8 +196,8 @@ class OpenCodeProxy:
                     except Exception as e:
                         logger.debug(f"获取用户昵称失败: {e}")
             
-            # 构建JSON前缀
-            if user_id and body_data.get("prompt"):
+            # 构建JSON前缀 - 添加到 parts 中的文本内容
+            if user_id and body_data.get("parts"):
                 prefix_data = {
                     "type": "web_message",
                     "user_qq": str(user_id),
@@ -205,10 +205,14 @@ class OpenCodeProxy:
                     "session_id": session_id,
                     "hint": f"用户{f'({user_name}, ' if user_name else f'(QQ: {user_id}, '}QQ: {user_id})通过网页发送了一条消息。"
                 }
-                json_prefix = "<Axeuh_bot>\n" + json.dumps(prefix_data, ensure_ascii=False) + "\n</Axeuh_bot>\n"
+                json_prefix = "<Axeuh_bot>\n" + json.dumps(prefix_data, ensure_ascii=False) + "\n</Axeuh_bot>\n\n"
                 
-                # 在消息前面添加JSON前缀
-                body_data["prompt"] = json_prefix + body_data["prompt"]
+                # 在 parts 的文本内容前面添加JSON前缀
+                for part in body_data["parts"]:
+                    if part.get("type") == "text" and part.get("text"):
+                        part["text"] = json_prefix + part["text"]
+                        break
+                
                 body = json.dumps(body_data).encode()
                 logger.debug(f"已添加JSON前缀到网页消息，user_id={user_id}, session_id={session_id}")
             
@@ -219,7 +223,7 @@ class OpenCodeProxy:
             user_directory = OPENCODE_DIRECTORY
             if user_id and self.get_directory_callback:
                 try:
-                    dir_result = await self.get_directory_callback(user_id)
+                    dir_result = await self.get_directory_callback(user_id, session_id)
                     if dir_result and dir_result.get("directory"):
                         user_directory = dir_result.get("directory")
                 except Exception as e:
@@ -234,13 +238,31 @@ class OpenCodeProxy:
             headers["x-opencode-directory"] = user_directory
             headers["Referer"] = f"{OPENCODE_BASE_URL}/{directory_b64}/session/{session_id}"
             
+            # 发送消息前先中断会话（确保新消息能被处理）
+            try:
+                abort_headers = headers.copy()
+                async with ClientSession() as abort_session:
+                    async with abort_session.post(
+                        f'{OPENCODE_BASE_URL}/session/{session_id}/abort',
+                        headers=abort_headers
+                    ) as abort_resp:
+                        if abort_resp.status == 200:
+                            logger.info(f"网页消息发送前自动中断会话: {session_id}")
+                        else:
+                            logger.debug(f"中断会话返回状态: {abort_resp.status}")
+            except Exception as abort_e:
+                # 中断失败不应阻止消息发送
+                logger.debug(f"尝试中断会话失败（继续发送）: {abort_e}")
+            
+            # 使用 prompt_async 端点进行异步发送
             async with ClientSession() as session:
                 async with session.post(
-                    f'{OPENCODE_BASE_URL}/session/{session_id}/message',
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/prompt_async',
                     headers=headers,
                     data=body
                 ) as upstream:
                     data = await upstream.read()
+                    # prompt_async 返回 204 No Content
                     return web.Response(status=upstream.status, body=data, content_type='application/json')
         except Exception as e:
             logger.error(f"代理发送消息失败: {e}")
@@ -352,4 +374,294 @@ class OpenCodeProxy:
                         }, status=500)
         except Exception as e:
             logger.error(f"获取QQ用户信息失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_abort(self, request: web.Request) -> web.Response:
+        """代理OpenCode中止会话"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            # 从认证中间件获取用户ID
+            user_id = request.get("user_id")
+            
+            # 构建请求头
+            headers = self._build_opencode_headers()
+            
+            # 获取用户的会话目录
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            # 确保目录不为空
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            # 设置正确的目录
+            headers["x-opencode-directory"] = user_directory
+            
+            async with ClientSession() as session:
+                async with session.post(
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/abort',
+                    headers=headers
+                ) as upstream:
+                    data = await upstream.read()
+                    logger.info(f"中止会话: {session_id}, 状态: {upstream.status}")
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"代理中止会话失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_command(self, request: web.Request) -> web.Response:
+        """代理OpenCode会话命令执行"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            # 从认证中间件获取用户ID
+            user_id = request.get("user_id")
+            
+            # 获取请求体
+            body = await request.json()
+            
+            # 构建请求头
+            headers = self._build_opencode_headers()
+            headers["Content-Type"] = "application/json"
+            
+            # 获取用户的会话目录
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            # 确保目录不为空
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            # 设置正确的目录
+            directory_b64 = base64.b64encode(user_directory.encode()).decode().rstrip('=')
+            headers["x-opencode-directory"] = user_directory
+            headers["Referer"] = f"{OPENCODE_BASE_URL}/{directory_b64}/session/{session_id}"
+            
+            async with ClientSession() as session:
+                async with session.post(
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/command',
+                    headers=headers,
+                    json=body
+                ) as upstream:
+                    data = await upstream.read()
+                    logger.info(f"执行命令: {body.get('command', 'unknown')}, 会话: {session_id}, 状态: {upstream.status}")
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"代理命令执行失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_commands(self, request: web.Request) -> web.Response:
+        """代理OpenCode命令列表"""
+        try:
+            async with ClientSession() as session:
+                headers = self._build_opencode_headers()
+                async with session.get(
+                    f'{OPENCODE_BASE_URL}/command',
+                    headers=headers
+                ) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"代理命令列表失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_status(self, request: web.Request) -> web.Response:
+        """代理OpenCode会话状态（获取所有会话的busy/idle状态）"""
+        try:
+            user_id = request.get("user_id")
+            headers = self._build_opencode_headers()
+            
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, None)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            headers["x-opencode-directory"] = user_directory
+            
+            async with ClientSession() as session:
+                async with session.get(
+                    f'{OPENCODE_BASE_URL}/session/status',
+                    headers=headers
+                ) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"获取会话状态失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_diff(self, request: web.Request) -> web.Response:
+        """代理OpenCode获取会话差异"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            user_id = request.get("user_id")
+            headers = self._build_opencode_headers()
+            
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            headers["x-opencode-directory"] = user_directory
+            
+            # 获取查询参数
+            query_string = request.query_string
+            url = f'{OPENCODE_BASE_URL}/session/{session_id}/diff'
+            if query_string:
+                url += f'?{query_string}'
+            
+            async with ClientSession() as session:
+                async with session.get(url, headers=headers) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"获取会话差异失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_summarize(self, request: web.Request) -> web.Response:
+        """代理OpenCode总结会话"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            user_id = request.get("user_id")
+            body = await request.json()
+            
+            headers = self._build_opencode_headers()
+            headers["Content-Type"] = "application/json"
+            
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            headers["x-opencode-directory"] = user_directory
+            
+            async with ClientSession() as session:
+                async with session.post(
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/summarize',
+                    headers=headers,
+                    json=body
+                ) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"总结会话失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_revert(self, request: web.Request) -> web.Response:
+        """代理OpenCode回退消息"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            user_id = request.get("user_id")
+            body = await request.json()
+            
+            headers = self._build_opencode_headers()
+            headers["Content-Type"] = "application/json"
+            
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            headers["x-opencode-directory"] = user_directory
+            
+            async with ClientSession() as session:
+                async with session.post(
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/revert',
+                    headers=headers,
+                    json=body
+                ) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"回退消息失败: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+    
+    async def handle_opencode_session_unrevert(self, request: web.Request) -> web.Response:
+        """代理OpenCode恢复回退的消息"""
+        try:
+            session_id = request.match_info.get('session_id')
+            if not session_id:
+                return web.json_response({"success": False, "error": "Missing session_id"}, status=400)
+            
+            user_id = request.get("user_id")
+            
+            headers = self._build_opencode_headers()
+            headers["Content-Type"] = "application/json"
+            
+            user_directory = OPENCODE_DIRECTORY
+            if user_id and self.get_directory_callback:
+                try:
+                    dir_result = await self.get_directory_callback(user_id, session_id)
+                    if dir_result and dir_result.get("directory"):
+                        user_directory = dir_result.get("directory")
+                except Exception as e:
+                    logger.warning(f"获取用户目录失败: {e}")
+            
+            if not user_directory:
+                user_directory = OPENCODE_DIRECTORY
+            
+            headers["x-opencode-directory"] = user_directory
+            
+            async with ClientSession() as session:
+                async with session.post(
+                    f'{OPENCODE_BASE_URL}/session/{session_id}/unrevert',
+                    headers=headers
+                ) as upstream:
+                    data = await upstream.read()
+                    return web.Response(status=upstream.status, body=data, content_type='application/json')
+        except Exception as e:
+            logger.error(f"恢复回退消息失败: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)

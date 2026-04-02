@@ -12,9 +12,9 @@ import { escapeHtml, formatFileSize, readFileAsDataURL, getDOM } from './utils.j
  * @param {File} file - 文件对象
  */
 export async function addPendingFile(file) {
-    // 检查文件大小（50MB）
-    if (file.size > 50 * 1024 * 1024) {
-        alert('文件大小不能超过50MB');
+    // 检查文件大小（1GB）
+    if (file.size > 1024 * 1024 * 1024) {
+        alert('文件大小不能超过1GB');
         return;
     }
     

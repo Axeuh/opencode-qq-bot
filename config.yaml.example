@@ -29,13 +29,15 @@ http_api:
 http_server:
   enabled: true           # 是否启用 HTTP 服务器
   host: "127.0.0.1"       # 监听地址
-  port: 8080              # HTTPS端口
-  http_port: 8081         # HTTP端口（仅本地访问）
-  http_host: "127.0.0.1"  # HTTP监听地址
-  access_token: ""        # API 访问令牌（可选）
-  # SSL/HTTPS 配置（可选）
-  ssl_cert: null  # SSL 证书路径，如 "/path/to/fullchain.pem"
-  ssl_key: null   # SSL 密钥路径，如 "/path/to/privkey.pem"
+  port: 4090              # HTTPS 端口（ssl.enabled=true 时）或 HTTP 端口
+  http_port: null         # HTTP 端口（可选，用于同时支持 HTTP 和 HTTPS）
+  access_token: ""        # API 访问令牌（可选，留空则不需要认证）
+  
+  # SSL 配置
+  ssl:
+    enabled: false        # 是否启用 SSL（HTTPS）
+    cert: ""              # SSL 证书路径，如 "certs/cert.pem"
+    key: ""               # SSL 密钥路径，如 "certs/key.pem"
 
 # ==================== 功能开关 ====================
 features:

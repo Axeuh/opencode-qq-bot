@@ -60,7 +60,7 @@ class HTTPServer:
         # Session Tokens 回调
         update_session_tokens_callback: Optional[Callable[[int, str, Dict[str, int]], Awaitable[Dict[str, Any]]]] = None,
         # Directory 回调
-        get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
+        get_directory_callback: Optional[Callable[[int, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
         set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None
     ):
         """初始化 HTTP 服务器
@@ -1577,6 +1577,8 @@ class HTTPServer:
                     "success": False,
                     "error": "Missing required parameter: user_id"
                 }, status=400)
+            
+            session_id = body.get("session_id")  # 可选参数
 
             try:
                 user_id = int(user_id)
@@ -1587,7 +1589,7 @@ class HTTPServer:
                 }, status=400)
 
             # 获取用户目录
-            result = await self.get_directory_callback(user_id)
+            result = await self.get_directory_callback(user_id, session_id)
 
             return web.json_response({
                 "success": True,
@@ -1823,7 +1825,7 @@ class HTTPServer:
             user_directory = OPENCODE_DIRECTORY
             if user_id and self.get_directory_callback:
                 try:
-                    dir_result = await self.get_directory_callback(user_id)
+                    dir_result = await self.get_directory_callback(user_id, session_id)
                     if dir_result and dir_result.get("directory"):
                         user_directory = dir_result.get("directory")
                 except Exception as e:

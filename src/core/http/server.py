@@ -65,7 +65,7 @@ class HTTPServer:
         # Session Status 回调
         get_all_sessions_status_callback: Optional[Callable[[], Awaitable[Dict[str, Any]]]] = None,
         # Directory 回调
-        get_directory_callback: Optional[Callable[[int], Awaitable[Dict[str, Any]]]] = None,
+        get_directory_callback: Optional[Callable[[int, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
         set_directory_callback: Optional[Callable[[int, str, Optional[str]], Awaitable[Dict[str, Any]]]] = None,
         # Session Manager
         session_manager: Optional[Any] = None,
@@ -96,7 +96,7 @@ class HTTPServer:
             delete_session_callback: 删除会话回调函数（异步），参数(user_id, session_id)，返回执行结果
             set_session_title_callback: 设置会话标题回调函数（异步），参数(user_id, session_id, title)，返回执行结果
             update_session_tokens_callback: 更新会话tokens回调函数（异步），参数(user_id, session_id, tokens)，返回执行结果
-            get_directory_callback: 获取目录回调函数（异步），参数(user_id)，返回目录信息
+            get_directory_callback: 获取目录回调函数（异步），参数(user_id, session_id)，返回目录信息
             set_directory_callback: 设置目录回调函数（异步），参数(user_id, directory, session_id)，返回执行结果
             session_manager: 会话管理器实例
             process_manager: 进程管理器实例

@@ -38,8 +38,8 @@ class UploadHandler:
         'zip', 'rar'
     }
     
-    # 最大文件大小 50MB
-    MAX_FILE_SIZE = 50 * 1024 * 1024
+    # 最大文件大小 1GB
+    MAX_FILE_SIZE = 1024 * 1024 * 1024
     
     def __init__(self, base_dir: Optional[str] = None):
         """初始化文件上传处理器
@@ -63,7 +63,7 @@ class UploadHandler:
             - 文档: pdf, doc, docx, xlsx, txt
             - 压缩包: zip, rar
             
-        最大文件大小: 50MB
+        最大文件大小: 1GB
         """
         try:
             # 获取 multipart reader
@@ -112,7 +112,7 @@ class UploadHandler:
             if file_size > self.MAX_FILE_SIZE:
                 return web.json_response({
                     "success": False,
-                    "error": f"File size exceeds limit: {file_size} bytes > {self.MAX_FILE_SIZE} bytes (50MB)"
+                    "error": f"File size exceeds limit: {file_size} bytes > {self.MAX_FILE_SIZE} bytes (1GB)"
                 }, status=400)
             
             # 检查文件类型

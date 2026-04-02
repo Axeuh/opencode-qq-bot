@@ -150,6 +150,25 @@ class OpenCodeClient(_BaseClient):
             create_if_not_exists=create_if_not_exists
         )
     
+    async def send_message_async(
+        self,
+        message_text: str,
+        session_id: str,
+        agent: Optional[str] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
+        directory: Optional[str] = None
+    ) -> RequestResult:
+        """异步发送消息到 OpenCode 会话（使用 prompt_async 端点，不堵塞进程）"""
+        return await self._message_api.send_message_async(
+            message_text=message_text,
+            session_id=session_id,
+            agent=agent,
+            model=model,
+            provider=provider,
+            directory=directory
+        )
+    
     async def execute_command(
         self,
         session_id: str,
