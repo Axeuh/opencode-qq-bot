@@ -47,7 +47,10 @@ export const AppState = {
     lastRenderTime: 0,
     
     // 文件上传
-    pendingFiles: []
+    pendingFiles: [],
+    
+    // 发送设置（从localStorage恢复，默认开启）
+    autoAbortBeforeSend: (typeof localStorage !== 'undefined' && localStorage.getItem('autoAbortBeforeSend') === 'false') ? false : true
 };
 
 /**

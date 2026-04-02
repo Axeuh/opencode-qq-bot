@@ -1254,6 +1254,15 @@ export function sendMessage() {
                 requestBody.agent = AppState.selectedAgent;
             }
             
+            // 如果开启了自动打断，先中止当前会话
+            if (AppState.autoAbortBeforeSend && sessionId) {
+                try {
+                    await apiPost(`/api/opencode/sessions/${sessionId}/abort`, {});
+                } catch (e) {
+                    // 忽略abort错误，继续发送消息
+                }
+            }
+            
             await apiPost(`/api/opencode/sessions/${sessionId}/messages`, requestBody);
             
             // 更新后端会话时间（不等待结果）

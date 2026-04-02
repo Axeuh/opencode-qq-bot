@@ -67,6 +67,9 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <!-- 背景动画Canvas -->
+    <div id="mind-canvas"></div>
+    
     <!-- 全局Loading遮罩层 -->
     <div id="global-loading">
         <div class="spinner"></div>
@@ -163,6 +166,13 @@
             <div class="input-row">
                 <textarea class="msg-input" id="chatInput" placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" disabled></textarea>
                 <button class="send-btn" id="sendBtn" title="发送 (Enter)" disabled><i class="fas fa-paper-plane"></i></button>
+                <button class="stop-btn" id="stopBtn" title="停止生成" style="display:none;"><i class="fas fa-stop"></i></button>
+            </div>
+            
+            <!-- 命令提示菜单 -->
+            <div class="command-menu" id="commandMenu" style="display:none;">
+                <div class="command-menu-header">OpenCode 命令</div>
+                <div class="command-menu-list" id="commandMenuList"></div>
             </div>
         </div>
 
@@ -252,6 +262,16 @@
                 <div class="form-group">
                     <label>当前 QQ 号</label>
                     <input type="text" class="form-input" id="currentQQ" readonly>
+                </div>
+                <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee;">
+                    <div>
+                        <label style="font-size: 14px; color: #4a4a4a;">发送前自动打断会话</label>
+                        <small style="display: block; color: #888; font-size: 11px; margin-top: 4px;">开启后，发送新消息前会自动停止当前正在生成的回复</small>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoAbortToggle" onchange="toggleAutoAbort(this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
                 <button class="btn btn-save" style="width:100%;margin-top:8px;" onclick="document.getElementById('settingsModal').style.display='none';document.getElementById('changePasswordModal').style.display='flex';">
                     <i class="fas fa-key" style="margin-right:8px;"></i>修改密码

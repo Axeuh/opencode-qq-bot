@@ -12,6 +12,7 @@ import { loadMessages, renderMessages, sendMessage, toggleTool } from './message
 import { connectSSE } from './sse.js';
 import { loadModels, loadAgents, updateUserSelections } from './config.js';
 import { initDragDrop, initPasteImage, addPendingFile, renderFilePreview, removePendingFile } from './upload.js';
+import { initBackground } from './background.js';
 
 // 导出全局函数（供HTML调用）
 window.handleLogin = handleLogin;
@@ -24,6 +25,7 @@ window.selectSession = selectSession;
 window.loadMessages = loadMessages;
 window.toggleTool = toggleTool;
 window.removePendingFile = removePendingFile;
+window.toggleAutoAbort = toggleAutoAbort;
 
 // 登录成功回调
 window.onLoginSuccess = initApp;
@@ -48,6 +50,14 @@ function toggleSidebar() {
         const isCollapsed = sidebar.classList.contains('collapsed');
         toggleBtn.innerHTML = isCollapsed ? '<i class="fas fa-bars"></i>' : '<i class="fas fa-times"></i>';
     }
+}
+
+/**
+ * 切换自动打断设置
+ */
+function toggleAutoAbort(checked) {
+    AppState.autoAbortBeforeSend = checked;
+    localStorage.setItem('autoAbortBeforeSend', checked ? 'true' : 'false');
 }
 
 /**
@@ -92,6 +102,12 @@ export async function initApp() {
     // 连接SSE
     connectSSE();
     
+    // 初始化自动打断设置开关状态
+    const autoAbortToggle = document.getElementById('autoAbortToggle');
+    if (autoAbortToggle) {
+        autoAbortToggle.checked = AppState.autoAbortBeforeSend;
+    }
+    
     // 隐藏loading遮罩层
     hideGlobalLoading();
 }
@@ -129,7 +145,7 @@ function closeAllSelects(except) {
 function initTextarea() {
     const chatInput = getDOM('chatInput');
     
-    chatInput.addEventListener('input', function() {
+    chatInput.addEventListener('input', async function() {
         this.style.height = '44px';
         if (this.scrollHeight > 150) {
             this.style.height = '150px';
@@ -138,12 +154,42 @@ function initTextarea() {
             this.style.height = this.scrollHeight + 'px';
             this.style.overflowY = 'hidden';
         }
+        
+        // 命令提示：检测输入是否以/开头
+        const value = this.value;
+        if (value.startsWith('/')) {
+            const filter = value.substring(1);
+            const { showCommandMenu } = await import('./message.js');
+            showCommandMenu(filter);
+        } else {
+            const { hideCommandMenu } = await import('./message.js');
+            hideCommandMenu();
+        }
     });
     
-    chatInput.addEventListener('keydown', function(e) {
+    chatInput.addEventListener('keydown', async function(e) {
+        // Esc键隐藏命令菜单
+        if (e.key === 'Escape') {
+            const { hideCommandMenu } = await import('./message.js');
+            hideCommandMenu();
+            return;
+        }
+        
+        // Tab键选择第一个命令
+        if (e.key === 'Tab' && this.value.startsWith('/')) {
+            e.preventDefault();
+            const commandMenu = getDOM('commandMenu');
+            const firstItem = commandMenu?.querySelector('.command-item');
+            if (firstItem) {
+                firstItem.click();
+            }
+            return;
+        }
+        
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (this.value.trim() && !AppState.isStreaming) {
+            // 允许一直发送，不再检查isStreaming
+            if (this.value.trim()) {
                 sendMessage();
             }
         }
@@ -155,10 +201,22 @@ function initTextarea() {
  */
 function initSendButton() {
     getDOM('sendBtn').addEventListener('click', () => {
-        if (!AppState.isStreaming) {
-            sendMessage();
-        }
+        // 允许一直发送
+        sendMessage();
     });
+}
+
+/**
+ * 初始化停止按钮
+ */
+function initStopButton() {
+    const stopBtn = getDOM('stopBtn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+            const { stopSession } = await import('./message.js');
+            stopSession();
+        });
+    }
 }
 
 /**
@@ -215,10 +273,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 先隐藏全局loading，让用户看到界面
     hideGlobalLoading();
     
+    // 初始化背景动画（在登录前就显示）
+    initBackground();
+    
     // 初始化UI交互
     initCustomSelects();
     initTextarea();
     initSendButton();
+    initStopButton();
     initDragDrop();
     initPasteImage();
     initMenu();
@@ -231,8 +293,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         AppState.userAtBottom = isAtBottom;
     });
     
-    // 点击页面关闭下拉框
-    document.addEventListener('click', closeAllSelects);
+    // 点击页面关闭下拉框和命令菜单
+    document.addEventListener('click', (e) => {
+        closeAllSelects();
+        // 隐藏命令菜单（除非点击的是命令菜单本身）
+        const commandMenu = getDOM('commandMenu');
+        if (commandMenu && !commandMenu.contains(e.target)) {
+            commandMenu.style.display = 'none';
+        }
+    });
     
     // 侧边栏切换
     getDOM('sidebarToggle').addEventListener('click', toggleSidebar);
